@@ -475,21 +475,4 @@ final class SqlDateTest extends TestCase
 		// invalid date
 		$this->assertEquals('', SqlDate::formatISO('invalid'));
 	}
-
-	// DEPRECATED
-
-	public function testGet(): void
-	{
-		// Date normale
-		$this->assertEquals('2024-01-15', SqlDate::get(2024, 1, 15));
-
-		// Date avec zéros à gauche
-		$this->assertEquals('2024-01-01', SqlDate::get(2024, 1, 1));
-		$this->assertEquals('2024-12-31', SqlDate::get(2024, 12, 31));
-
-		// Formatage correct des mois/jours < 10
-		$this->assertEquals('2024-03-05', SqlDate::get(2024, 3, 5));
-		$this->assertEquals('2024-10-25', SqlDate::get(2024, 10, 25));
-	}
-
 }

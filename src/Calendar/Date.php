@@ -40,6 +40,15 @@ class Date
 			return $dateTime;
 		}
 
+		// ISO 8601 datetime string with timezone indicator (e.g. "2024-01-15T00:00:00Z", "2024-01-15T04:00:00+05:30").
+		// Extract the date part only to avoid timezone conversion shifting the calendar date
+		// (e.g. UTC midnight = previous day in UTC-4 timezone such as Martinique).
+		if (preg_match('/^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:?\d{2})$/', $str, $matches)) {
+			if (null !== ($sqlDate = SqlDate::parse($matches[1])) && false !== SqlDate::isValid($sqlDate)) {
+				return DateTime::parseFromSqlDateTime($sqlDate . ' 00:00:00');
+			}
+		}
+
 		// Format YYYYMMDD
 		if (strlen($str) === strlen('yyyymmdd') && ctype_digit($str)) {
 			$sqlDate = substr($str, 0, 4).'-'.substr($str, 4, 2).'-'.substr($str, 6, 2);
@@ -58,7 +67,7 @@ class Date
 			}
 		}
 
-		if (null !== ($sqlDate = SqlDate::parse($str)) && false !== SqlDate::check($sqlDate)) {
+		if (null !== ($sqlDate = SqlDate::parse($str)) && false !== SqlDate::isValid($sqlDate)) {
 			return DateTime::parseFromSqlDateTime($sqlDate.' 00:00:00');
 		}
 

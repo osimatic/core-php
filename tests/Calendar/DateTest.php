@@ -23,6 +23,23 @@ class DateTest extends TestCase
 		$this->assertInstanceOf(\DateTime::class, $date);
 		$this->assertEquals('2024-01-15', $date->format('Y-m-d'));
 
+		// ISO 8601 with timezone — must return the calendar date as-is, without timezone conversion
+		$date = Date::parse('2024-01-15T00:00:00Z');
+		$this->assertInstanceOf(\DateTime::class, $date);
+		$this->assertEquals('2024-01-15', $date->format('Y-m-d'));
+
+		$date = Date::parse('2024-01-15T00:00:00+05:30');
+		$this->assertInstanceOf(\DateTime::class, $date);
+		$this->assertEquals('2024-01-15', $date->format('Y-m-d'));
+
+		$date = Date::parse('2024-01-15T00:00:00-04:00');
+		$this->assertInstanceOf(\DateTime::class, $date);
+		$this->assertEquals('2024-01-15', $date->format('Y-m-d'));
+
+		$date = Date::parse('2024-01-15T23:59:59Z');
+		$this->assertInstanceOf(\DateTime::class, $date);
+		$this->assertEquals('2024-01-15', $date->format('Y-m-d'));
+
 		$this->assertNull(Date::parse('invalid'));
 		$this->assertNull(Date::parse(''));
 	}
