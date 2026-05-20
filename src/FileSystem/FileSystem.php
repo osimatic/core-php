@@ -43,6 +43,18 @@ class FileSystem
 	}
 
 	/**
+	 * Strips surrounding single and double quotes from a path.
+	 * Useful when a binary path is configured with shell-style quotes (e.g. `"C:\Program Files\tool.exe"`)
+	 * that would cause is_executable() checks to fail.
+	 * @param string $path The path to strip quotes from
+	 * @return string The path without surrounding quotes
+	 */
+	public static function stripQuotes(string $path): string
+	{
+		return trim($path, '\'"');
+	}
+
+	/**
 	 * Returns the directory path without the filename.
 	 * Ensures the result always ends with a directory separator.
 	 * @param string $filePath The full file path

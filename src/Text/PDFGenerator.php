@@ -60,7 +60,7 @@ class PDFGenerator
 		\Osimatic\FileSystem\FileSystem::initializeFile($filePath);
 
 		$snappy = new \Knp\Snappy\Pdf();
-		$snappy->setBinary($this->wkHtmlToPdtBinaryPath);
+		$snappy->setBinary(\Osimatic\FileSystem\FileSystem::stripQuotes($this->wkHtmlToPdtBinaryPath ?? ''));
 		$snappy->setLogger($this->logger);
 		if (!empty($headerHtml)) {
 			$snappy->setOption('header-html', $headerHtml);

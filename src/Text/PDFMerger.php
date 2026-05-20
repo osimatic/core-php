@@ -53,7 +53,7 @@ class PDFMerger
 	public function getPdfToolkitBinaryPath(bool $trim = true): string
 	{
 		$path = $this->pdfToolkitBinaryPath ?? 'pdftk';
-		return $trim ? trim($path, '\'"') : $path;
+		return $trim ? \Osimatic\FileSystem\FileSystem::stripQuotes($path) : $path;
 	}
 
 	/**

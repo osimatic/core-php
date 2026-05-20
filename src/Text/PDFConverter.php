@@ -53,7 +53,7 @@ class PDFConverter
 	public function getImagickConverterBinaryPath(bool $trim = true): string
 	{
 		$path = $this->imagickConverterBinaryPath ?? 'imagick';
-		return $trim ? trim($path, '\'"') : $path;
+		return $trim ? \Osimatic\FileSystem\FileSystem::stripQuotes($path) : $path;
 	}
 
 	/**

@@ -43,7 +43,7 @@ class AudioConverter
 	public function getSoxBinaryPath(bool $trim = true): string
 	{
 		$path = $this->soxBinaryPath ?? 'sox';
-		return $trim ? trim($path, '\'"') : $path;
+		return $trim ? \Osimatic\FileSystem\FileSystem::stripQuotes($path) : $path;
 	}
 
 	/**
@@ -66,7 +66,7 @@ class AudioConverter
 	public function getFfmpegBinaryPath(bool $trim = true): string
 	{
 		$path = $this->ffmpegBinaryPath ?? 'ffmpeg';
-		return $trim ? trim($path, '\'"') : $path;
+		return $trim ? \Osimatic\FileSystem\FileSystem::stripQuotes($path) : $path;
 	}
 
 	/**
