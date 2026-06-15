@@ -46,7 +46,7 @@ class CSVGenerator
 	{
 		\Osimatic\FileSystem\FileSystem::initializeFile($filePath);
 
-		$serializer = new Serializer([new ObjectNormalizer()], [new CsvEncoder([CsvEncoder::DELIMITER_KEY => ';', CsvEncoder::OUTPUT_UTF8_BOM_KEY => true])]);
+		$serializer = new Serializer([new ObjectNormalizer()], [new CsvEncoder([CsvEncoder::DELIMITER_KEY => ';', CsvEncoder::OUTPUT_UTF8_BOM_KEY => false])]);
 
 		if (!empty($title)) {
 			$data = array_merge([[$title]], $data);
