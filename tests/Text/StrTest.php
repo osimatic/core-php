@@ -39,6 +39,43 @@ final class StrTest extends TestCase
 		$this->assertSame('He WRD', $result);
 	}
 
+	/* ===================== sanitizeInput() ===================== */
+
+	public function testSanitizeInput(): void
+	{
+		// ASCII string — unchanged
+		$result = Str::sanitizeInput('hello world');
+		$this->assertSame('hello world', $result);
+
+		// Combining diacritical marks (e + combining acute) — composed to precomposed é by FORM_C
+		$result = Str::sanitizeInput('e' . "\u{0301}"); // e with combining acute
+		$this->assertSame('é', $result);
+
+		// Precomposed accented characters — preserved by FORM_C normalization
+		$result = Str::sanitizeInput('café');
+		$this->assertSame('café', $result);
+
+		// Mixed precomposed text — preserved by FORM_C
+		$result = Str::sanitizeInput('Naïve façade');
+		$this->assertSame('Naïve façade', $result);
+
+		// French text with various accents — preserved by FORM_C normalization
+		$result = Str::sanitizeInput('Éléphant français');
+		$this->assertSame('Éléphant français', $result);
+
+		// Curly quotes replaced with straight quotes by replaceAnnoyingChar()
+		$result = Str::sanitizeInput('"Hello" – world');
+		$this->assertSame('"Hello" - world', $result);
+
+		// Em dash and en dash replaced with regular hyphen
+		$result = Str::sanitizeInput('test — example – case');
+		$this->assertSame('test - example - case', $result);
+
+		// Empty string
+		$result = Str::sanitizeInput('');
+		$this->assertSame('', $result);
+	}
+
 	/* ===================== levenshtein() ===================== */
 
 	public function testLevenshtein(): void

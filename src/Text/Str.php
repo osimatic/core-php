@@ -58,6 +58,36 @@ class Str
 		return $str;
 	}
 
+	// ========== Unicode Normalization ==========
+
+	/**
+	 * Sanitizes a string by cleaning problematic Unicode characters and normalizing diacritical marks.
+	 * Processing steps:
+	 * 1. Replaces problematic typographic characters (curly quotes, dashes, special spaces) with ASCII equivalents via replaceAnnoyingChar()
+	 * 2. Normalizes to Unicode NFC (composed) form, composing combining characters with their base characters
+	 * 3. Removes any remaining combining diacritical marks that don't compose
+	 * Requires the intl PHP extension for proper Unicode normalization.
+	 * Without intl, only the combining marks removal is performed after replaceAnnoyingChar().
+	 * Example: '"café"' (with curly quotes) becomes '"café"' (with straight quotes)
+	 * Example: "e\u{0301}" (e + combining acute) becomes "é" (precomposed)
+	 * @param string $input The string to sanitize
+	 * @return string The sanitized string with problematic characters replaced and combining marks removed
+	 * @link https://www.php.net/manual/en/class.normalizer.php Normalizer class
+	 * @link https://unicode.org/reports/tr15/ Unicode Normalization Forms
+	 */
+	public static function sanitizeInput(string $input): string
+	{
+		// 1. Nettoyage des caractères typographiques problématiques
+		$input = self::replaceAnnoyingChar($input);
+
+		// 2. Normalisation des caractères de combinaison
+		if (extension_loaded('intl') && class_exists('Normalizer')) {
+			$normalized = \Normalizer::normalize($input, \Normalizer::FORM_C);
+		} else {
+			$normalized = $input;
+		}
+		return preg_replace('/\p{Mn}/u', '', $normalized);
+	}
 
 	// ========== String Comparison ==========
 
