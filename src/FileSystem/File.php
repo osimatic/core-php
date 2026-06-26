@@ -166,6 +166,31 @@ class File
 		return false;
 	}
 
+	/**
+	 * Validates a single UploadedFile by checking its size, error code, and allowed formats.
+	 * @param UploadedFile $uploadedFile The file to validate
+	 * @param string[] $allowedFormats Optional array of allowed formats (e.g., ['pdf', 'jpg'])
+	 * @param LoggerInterface|null $logger Optional PSR-3 logger for debugging
+	 * @return bool True if the file passes all validation checks, false otherwise
+	 */
+	private static function validateUploadedFile(UploadedFile $uploadedFile, array $allowedFormats = [], ?LoggerInterface $logger = null): bool
+	{
+		if ($uploadedFile->getSize() === 0) {
+			$logger?->info('Skipping empty uploaded file.');
+			return false;
+		}
+		if (UPLOAD_ERR_OK !== $uploadedFile->getError()) {
+			$logger?->info('Upload failed with error code '.$uploadedFile->getError().'. Error message : '.$uploadedFile->getErrorMessage());
+			return false;
+		}
+		if (!empty($allowedFormats) && !self::checkAllowedFormat($uploadedFile, $allowedFormats)) {
+			$logger?->info('Uploaded file with invalid format.');
+			return false;
+		}
+		$logger?->info('Uploaded file size: '.$uploadedFile->getSize());
+		return true;
+	}
+
 
 	/**
 	 * Extracts and validates an uploaded file from an HTTP request.
@@ -190,25 +215,50 @@ class File
 			return new InputFile(data: $uploadedFileData, mimeType: self::getMimeTypeFromBase64Data($data), base64EncodedData: $data);
 		}
 
-		/** @var UploadedFile $uploadedFile */
-		if (!empty($uploadedFile = $request->files->get($inputFileName)) && $uploadedFile->getSize() !== 0) {
+		$uploadedFile = $request->files->get($inputFileName);
+		$uploadedFile = is_array($uploadedFile) ? array_values(array_filter($uploadedFile))[0] ?? null : $uploadedFile;
+
+		if (!empty($uploadedFile)) {
 			$logger?->info('Uploaded file from form.');
-			if (UPLOAD_ERR_OK !== $uploadedFile->getError()) {
-				$logger?->info('Upload failed with error code '.$uploadedFile->getError().'. Error message : '.$uploadedFile->getErrorMessage());
+			if (!self::validateUploadedFile($uploadedFile, $allowedFormats, $logger)) {
 				return null;
 			}
-
-			if (!empty($allowedFormats) && !self::checkAllowedFormat($uploadedFile, $allowedFormats)) {
-				$logger?->info('Uploaded file with invalid format.');
-				return null;
-			}
-
-			$logger?->info('Uploaded file size: '.$uploadedFile->getSize());
 			return $uploadedFile;
 		}
 
 		$logger?->info('Uploaded file not found in request.');
 		return null;
+	}
+
+	/**
+	 * Extracts and validates multiple uploaded files from an HTTP request.
+	 * Handles both array field names (e.g. field[]) and single-file fields wrapped in an array.
+	 * @param Request $request The Symfony HTTP request object
+	 * @param string $inputFileName The form field name for file uploads
+	 * @param string[] $allowedFormats Optional array of allowed formats (e.g., ['image'])
+	 * @param LoggerInterface|null $logger Optional PSR-3 logger for debugging
+	 * @return UploadedFile[] Array of valid uploaded file objects
+	 */
+	public static function getUploadedFilesFromRequest(Request $request, string $inputFileName, array $allowedFormats=[], ?LoggerInterface $logger=null): array
+	{
+		$files = $request->files->get($inputFileName);
+		if (empty($files)) {
+			$logger?->info('No uploaded files found in request for field "'.$inputFileName.'".');
+			return [];
+		}
+
+		if (!is_array($files)) {
+			$files = [$files];
+		}
+
+		$result = [];
+		foreach (array_filter($files) as $uploadedFile) {
+			if (!self::validateUploadedFile($uploadedFile, $allowedFormats, $logger)) {
+				continue;
+			}
+			$result[] = $uploadedFile;
+		}
+		return $result;
 	}
 
 	/**
