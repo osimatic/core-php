@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  * - File output to browser (download or inline display)
  * - MIME type detection and conversion
  * - File extension management
+ * - Upload size limits (post_max_size, upload_max_filesize)
  */
 class File
 {
@@ -297,6 +298,69 @@ class File
 		}
 
 		return false;
+	}
+
+	// ========== Upload Limits ==========
+
+	/**
+	 * Converts a php.ini shorthand byte value (e.g. "8M", "512K", "2G") into a number of bytes.
+	 * @link https://www.php.net/manual/en/faq.using.php#faq.using.shorthandbytes
+	 * @param string $iniValue The ini value, optionally suffixed with a K, M or G unit
+	 * @return int The corresponding value in bytes (0 means unlimited)
+	 */
+	public static function convertIniSizeToBytes(string $iniValue): int
+	{
+		$iniValue = trim($iniValue);
+		if ('' === $iniValue) {
+			return 0;
+		}
+
+		$value = (int) $iniValue;
+		return match (strtolower(substr($iniValue, -1))) {
+			'g' => $value * 1024 * 1024 * 1024,
+			'm' => $value * 1024 * 1024,
+			'k' => $value * 1024,
+			default => $value,
+		};
+	}
+
+	/**
+	 * Returns the maximum size (in bytes) allowed for a whole HTTP request body, as configured by the post_max_size php.ini directive.
+	 * @link https://www.php.net/manual/en/ini.core.php#ini.post-max-size
+	 * @return int The post_max_size limit in bytes (0 means unlimited)
+	 */
+	public static function getPostMaxSize(): int
+	{
+		return self::convertIniSizeToBytes((string) ini_get('post_max_size'));
+	}
+
+	/**
+	 * Returns the maximum size (in bytes) allowed for a single uploaded file, as configured by the upload_max_filesize php.ini directive.
+	 * @link https://www.php.net/manual/en/ini.core.php#ini.upload-max-filesize
+	 * @return int The upload_max_filesize limit in bytes (0 means unlimited)
+	 */
+	public static function getUploadMaxFileSize(): int
+	{
+		return self::convertIniSizeToBytes((string) ini_get('upload_max_filesize'));
+	}
+
+	/**
+	 * Checks whether an incoming HTTP request body was rejected by PHP for exceeding the post_max_size directive.
+	 * In that case, PHP empties $_POST and $_FILES entirely before the script runs, without raising any catchable
+	 * error, so a missing uploaded file cannot be told apart from an oversized request unless the Content-Length
+	 * header is checked directly against post_max_size.
+	 * @link https://www.php.net/manual/en/ini.core.php#ini.post-max-size
+	 * @param Request $request The Symfony HTTP request object
+	 * @return bool True if the request content length exceeds post_max_size, false otherwise
+	 */
+	public static function isPostMaxSizeExceeded(Request $request): bool
+	{
+		$postMaxSize = self::getPostMaxSize();
+		if ($postMaxSize <= 0) {
+			return false;
+		}
+
+		return ((int) $request->headers->get('Content-Length', 0)) > $postMaxSize;
 	}
 
 	// ========== File Validation ==========

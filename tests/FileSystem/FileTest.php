@@ -569,6 +569,46 @@ final class FileTest extends TestCase
 		}
 	}
 
+	/* ===================== Upload Limits ===================== */
+
+	public function testConvertIniSizeToBytes(): void
+	{
+		$this->assertSame(0, File::convertIniSizeToBytes(''));
+		$this->assertSame(100, File::convertIniSizeToBytes('100'));
+		$this->assertSame(1024, File::convertIniSizeToBytes('1K'));
+		$this->assertSame(2 * 1024 * 1024, File::convertIniSizeToBytes('2M'));
+		$this->assertSame(3 * 1024 * 1024 * 1024, File::convertIniSizeToBytes('3G'));
+		// Unité insensible à la casse
+		$this->assertSame(4 * 1024 * 1024, File::convertIniSizeToBytes('4m'));
+		$this->assertSame(0, File::convertIniSizeToBytes('0'));
+	}
+
+	public function testGetPostMaxSize(): void
+	{
+		$this->assertSame(File::convertIniSizeToBytes((string) ini_get('post_max_size')), File::getPostMaxSize());
+	}
+
+	public function testGetUploadMaxFileSize(): void
+	{
+		$this->assertSame(File::convertIniSizeToBytes((string) ini_get('upload_max_filesize')), File::getUploadMaxFileSize());
+	}
+
+	public function testIsPostMaxSizeExceeded(): void
+	{
+		$postMaxSize = File::getPostMaxSize();
+		if ($postMaxSize <= 0) {
+			$this->markTestSkipped('post_max_size illimité sur cet environnement.');
+		}
+
+		// Content-Length supérieur à post_max_size
+		$requestTooLarge = \Symfony\Component\HttpFoundation\Request::create('/document', 'POST', [], [], [], ['CONTENT_LENGTH' => (string) ($postMaxSize + 1)]);
+		$this->assertTrue(File::isPostMaxSizeExceeded($requestTooLarge));
+
+		// Content-Length inférieur à post_max_size
+		$requestOk = \Symfony\Component\HttpFoundation\Request::create('/document', 'POST', [], [], [], ['CONTENT_LENGTH' => '100']);
+		$this->assertFalse(File::isPostMaxSizeExceeded($requestOk));
+	}
+
 	/* ===================== File Validation ===================== */
 
 	public function testCheckWithValidFile(): void
