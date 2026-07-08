@@ -99,6 +99,12 @@ holidays:
     date: "11-02"
     territories: [MQ, GP]
 
+  - name: "Lundi gras"
+    type: easter
+    offset: -48
+    key: lundi_gras
+    territories: [MQ, GP]
+
   - name: "Mardi gras"
     type: easter
     offset: -47
