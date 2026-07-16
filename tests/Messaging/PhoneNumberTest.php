@@ -343,59 +343,34 @@ final class PhoneNumberTest extends TestCase
 
 	/* ===================== formatFromIvr() ===================== */
 
-	public function testFormatFromIvrWithNull(): void
+	public function testFormatFromIvr(): void
 	{
-		$result = PhoneNumber::formatFromIvr(null);
-		$this->assertNull($result);
-	}
+		// Null input
+		$this->assertNull(PhoneNumber::formatFromIvr(null));
 
-	public function testFormatFromIvrWithEmptyString(): void
-	{
-		$result = PhoneNumber::formatFromIvr('');
-		$this->assertSame('', $result);
-	}
+		// Anonymous / empty markers
+		$this->assertSame('', PhoneNumber::formatFromIvr(''));
+		$this->assertSame('', PhoneNumber::formatFromIvr('0'));
+		$this->assertSame('', PhoneNumber::formatFromIvr('Anonymous'));
 
-	public function testFormatFromIvrWithZero(): void
-	{
-		$result = PhoneNumber::formatFromIvr('0');
-		$this->assertSame('', $result);
-	}
+		// 9-digit number without leading zero: trunk code '0' is added
+		$this->assertSame('0612345678', PhoneNumber::formatFromIvr('612345678'));
 
-	public function testFormatFromIvrWithAnonymous(): void
-	{
-		$result = PhoneNumber::formatFromIvr('Anonymous');
-		$this->assertSame('', $result);
-	}
+		// More than 9 digits, no '+' or '0' prefix: treated as international, '00' is added
+		$this->assertSame('0033612345678', PhoneNumber::formatFromIvr('33612345678'));
 
-	public function testFormatFromIvrWithNineDigits(): void
-	{
-		$result = PhoneNumber::formatFromIvr('612345678');
-		$this->assertSame('0612345678', $result);
-	}
+		// Already starting with '+33': left untouched
+		$this->assertSame('+33612345678', PhoneNumber::formatFromIvr('+33612345678'));
 
-	public function testFormatFromIvrWithMoreThanNineDigits(): void
-	{
-		$result = PhoneNumber::formatFromIvr('33612345678');
-		$this->assertSame('0033612345678', $result);
-	}
+		// Already starting with '0': left untouched
+		$this->assertSame('0612345678', PhoneNumber::formatFromIvr('0612345678'));
 
-	public function testFormatFromIvrWithPlusThirtyThree(): void
-	{
-		$result = PhoneNumber::formatFromIvr('+33612345678');
-		$this->assertSame('+33612345678', $result);
-	}
+		// Already starting with '+' for a non-French country code: must not get '00' prepended
+		// Regression test: this used to incorrectly return '00+3222505044'
+		$this->assertSame('+3222505044', PhoneNumber::formatFromIvr('+3222505044'));
 
-	public function testFormatFromIvrWithZeroPrefix(): void
-	{
-		$result = PhoneNumber::formatFromIvr('0612345678');
-		$this->assertSame('0612345678', $result);
-	}
-
-	public function testFormatFromIvrWithGuadeloupeNumber(): void
-	{
-		// Guadeloupe calling code is 590, test the overseas territory logic
-		$result = PhoneNumber::formatFromIvr('0590590123456');
-		$this->assertSame('+590590123456', $result);
+		// French overseas territory number with '0' instead of '00' (Guadeloupe calling code is 590)
+		$this->assertSame('+590590123456', PhoneNumber::formatFromIvr('0590590123456'));
 	}
 
 	/* ===================== formatForIvr() ===================== */

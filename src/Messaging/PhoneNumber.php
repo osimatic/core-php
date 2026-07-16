@@ -222,7 +222,7 @@ class PhoneNumber
 			return '';
 		}
 
-		if (!str_starts_with($phoneNumber, '+33') && !str_starts_with($phoneNumber, '0')) {
+		if (!str_starts_with($phoneNumber, '+') && !str_starts_with($phoneNumber, '0')) {
 			if (mb_strlen($phoneNumber) > 9) {
 				return '00'.$phoneNumber;
 			}
