@@ -102,12 +102,12 @@ class HTTPClient implements ClientInterface
 				if (HTTPMethod::GET === $method) {
 					$options['query'] = array_merge($options['query'] ?? [], $queryData);
 				}
-			}
-			else {
-				if ($jsonBody) {
-					$options['json'] = $queryData;
-				} else {
-					$options['form_params'] = $queryData;
+				else {
+					if ($jsonBody) {
+						$options['json'] = $queryData;
+					} else {
+						$options['form_params'] = $queryData;
+					}
 				}
 			}
 
