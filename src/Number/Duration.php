@@ -241,6 +241,9 @@ class Duration
 	 */
 	public static function formatNbHours(int $durationInSeconds, DurationDisplayMode $displayMode=DurationDisplayMode::STANDARD, bool $withSeconds=true): string
 	{
+		$sign = $durationInSeconds < 0 ? '-' : '';
+		$durationInSeconds = abs($durationInSeconds);
+
 		// Hours
 		$strHour = sprintf('%02d', self::getNbHours($durationInSeconds)).':';
 
@@ -253,7 +256,7 @@ class Duration
 			$strSecond = self::getFormattedNbSeconds(self::getNbSecondsRemaining($durationInSeconds), $displayMode);
 		}
 
-		return $strHour.$strMinute.$strSecond;
+		return $sign.$strHour.$strMinute.$strSecond;
 	}
 
 	/**
@@ -264,13 +267,16 @@ class Duration
 	 */
 	public static function formatNbMinutes(int $durationInSeconds, DurationDisplayMode $displayMode=DurationDisplayMode::STANDARD): string
 	{
+		$sign = $durationInSeconds < 0 ? '-' : '';
+		$durationInSeconds = abs($durationInSeconds);
+
 		// Minutes
 		$strMinute = self::getFormattedNbMinutes(self::getNbMinutes($durationInSeconds), $displayMode);
 
 		// Seconds
 		$strSecond = self::getFormattedNbSeconds(self::getNbSecondsRemaining($durationInSeconds), $displayMode);
 
-		return $strMinute.$strSecond;
+		return $sign.$strMinute.$strSecond;
 	}
 
 	/**
@@ -474,20 +480,7 @@ class Duration
 	public static function formatHourChrono(int $durationInSeconds, string $displayMode='standard', bool $withSeconds=true): string
 	{
 		$enumDisplayMode = DurationDisplayMode::parse($displayMode) ?? DurationDisplayMode::STANDARD;
-
-		// Hours
-		$strHour = sprintf('%02d', self::getNbHours($durationInSeconds)).':';
-
-		// Minutes
-		$strMinute = self::getFormattedNbMinutes(self::getNbMinutesRemaining($durationInSeconds), $enumDisplayMode);
-
-		// Seconds
-		$strSecond = '';
-		if ($withSeconds) {
-			$strSecond = self::getFormattedNbSeconds(self::getNbSecondsRemaining($durationInSeconds), $enumDisplayMode);
-		}
-
-		return $strHour.$strMinute.$strSecond;
+		return self::formatNbHours($durationInSeconds, $enumDisplayMode, $withSeconds);
 	}
 
 	/**
@@ -496,14 +489,7 @@ class Duration
 	public static function formatMinuteChrono(int $durationInSeconds, string $displayMode='standard'): string
 	{
 		$enumDisplayMode = DurationDisplayMode::parse($displayMode) ?? DurationDisplayMode::STANDARD;
-
-		// Minutes
-		$strMinute = self::getFormattedNbMinutes(self::getNbMinutes($durationInSeconds), $enumDisplayMode);
-
-		// Seconds
-		$strSecond = self::getFormattedNbSeconds(self::getNbSecondsRemaining($durationInSeconds), $enumDisplayMode);
-
-		return $strMinute.$strSecond;
+		return self::formatNbMinutes($durationInSeconds, $enumDisplayMode);
 	}
 
 	/**

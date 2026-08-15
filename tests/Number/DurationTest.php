@@ -245,6 +245,18 @@ final class DurationTest extends TestCase
 		// Input time mode: "10:20:30"
 		$result = Duration::formatNbHours(37230, DurationDisplayMode::INPUT_TIME);
 		$this->assertEquals('10:20:30', $result);
+
+		// Negative duration: single leading "-", absolute value formatted (not one negative component per group)
+		$result = Duration::formatNbHours(-37230);
+		$this->assertEquals('-10:20.30', $result);
+
+		// Negative duration below 1 hour (regression case: was displaying as "-2:-35.00" instead of "-1:35.00")
+		$result = Duration::formatNbHours(-5700); // -1h35min
+		$this->assertEquals('-01:35.00', $result);
+
+		// Negative duration, input time mode
+		$result = Duration::formatNbHours(-5700, DurationDisplayMode::INPUT_TIME);
+		$this->assertEquals('-01:35:00', $result);
 	}
 
 	public function testFormatNbMinutes(): void
@@ -261,6 +273,10 @@ final class DurationTest extends TestCase
 		// Input time mode: "20:30"
 		$result = Duration::formatNbMinutes(1230, DurationDisplayMode::INPUT_TIME);
 		$this->assertEquals('20:30', $result);
+
+		// Negative duration: single leading "-", absolute value formatted (not one negative component per group)
+		$result = Duration::formatNbMinutes(-1230);
+		$this->assertEquals('-20.30', $result);
 	}
 
 	/* ===================== Parsing ===================== */
@@ -349,6 +365,18 @@ final class DurationTest extends TestCase
 		$duration = 3784; // 1h 3min 4sec
 		$rounded = Duration::round($duration, 5, 'down');
 		$this->assertEquals(3600, $rounded); // Round down to 1h 0min
+
+		// Negative duration, round to 5 minutes - closest (mirrors the 3784 => 3900 case)
+		$rounded = Duration::round(-3784, 5, 'close');
+		$this->assertEquals(-3900, $rounded);
+
+		// Negative duration, round 'down' (floor towards more negative, i.e. away from zero)
+		$rounded = Duration::round(-3784, 5, 'down');
+		$this->assertEquals(-3900, $rounded);
+
+		// Negative duration, round 'up' (ceil towards zero)
+		$rounded = Duration::round(-3784, 5, 'up');
+		$this->assertEquals(-3600, $rounded);
 	}
 
 	/* ===================== Min/Max Validation ===================== */
