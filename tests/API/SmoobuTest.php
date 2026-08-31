@@ -17,7 +17,7 @@ class SmoobuTest extends TestCase
 	protected function setUp(): void
 	{
 		$this->logger = $this->createMock(LoggerInterface::class);
-		$this->smoobu = new Smoobu('test-api-key', $this->logger);
+		$this->smoobu = new Smoobu('test-api-key', 'test-api-secret', $this->logger);
 	}
 
 	// ========================================
@@ -38,10 +38,17 @@ class SmoobuTest extends TestCase
 		self::assertInstanceOf(Smoobu::class, $smoobu);
 	}
 
+	public function testConstructorWithApiSecret(): void
+	{
+		$smoobu = new Smoobu('test-api-key', 'test-api-secret');
+
+		self::assertInstanceOf(Smoobu::class, $smoobu);
+	}
+
 	public function testConstructorWithCustomLogger(): void
 	{
 		$logger = $this->createMock(LoggerInterface::class);
-		$smoobu = new Smoobu('test-api-key', $logger);
+		$smoobu = new Smoobu('test-api-key', 'test-api-secret', $logger);
 
 		self::assertInstanceOf(Smoobu::class, $smoobu);
 	}
@@ -49,7 +56,7 @@ class SmoobuTest extends TestCase
 	public function testConstructorWithCustomHttpClient(): void
 	{
 		$httpClient = $this->createMock(HTTPClient::class);
-		$smoobu = new Smoobu('test-api-key', $this->logger, $httpClient);
+		$smoobu = new Smoobu('test-api-key', 'test-api-secret', $this->logger, $httpClient);
 
 		self::assertInstanceOf(Smoobu::class, $smoobu);
 	}
@@ -66,6 +73,22 @@ class SmoobuTest extends TestCase
 	{
 		$smoobu = new Smoobu();
 		$result = $smoobu->setApiKey('key1')->setApiKey('key2');
+
+		self::assertSame($smoobu, $result);
+	}
+
+	public function testSetApiSecret(): void
+	{
+		$smoobu = new Smoobu();
+		$result = $smoobu->setApiSecret('new-api-secret');
+
+		self::assertSame($smoobu, $result);
+	}
+
+	public function testSetApiSecretMethodChaining(): void
+	{
+		$smoobu = new Smoobu();
+		$result = $smoobu->setApiSecret('secret1')->setApiSecret('secret2');
 
 		self::assertSame($smoobu, $result);
 	}
@@ -90,9 +113,9 @@ class SmoobuTest extends TestCase
 		// In a real scenario, we would mock the HTTP response
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getMe();
 
 		self::assertNull($result);
@@ -106,9 +129,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getApartments();
 
 		self::assertNull($result);
@@ -118,9 +141,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getApartment(123);
 
 		self::assertNull($result);
@@ -156,9 +179,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getReservations();
 
 		self::assertNull($result);
@@ -168,9 +191,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$filters = [
 			'from' => '2024-01-01',
 			'to' => '2024-12-31',
@@ -185,9 +208,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getReservation(456);
 
 		self::assertNull($result);
@@ -208,9 +231,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$reservationData = [
 			'arrivalDate' => '2024-06-01',
 			'departureDate' => '2024-06-07',
@@ -236,9 +259,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$reservationData = [
 			'arrivalDate' => '2024-06-01',
 			'departureDate' => '2024-06-07',
@@ -266,9 +289,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$reservationData = [
 			'arrivalDate' => '2024-06-01',
 			'departureDate' => '2024-06-08',
@@ -293,9 +316,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->cancelReservation(456);
 
 		self::assertFalse($result);
@@ -327,9 +350,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->deleteReservation(456);
 
 		self::assertFalse($result);
@@ -343,9 +366,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$checkData = [
 			'arrivalDate' => '2024-06-01',
 			'departureDate' => '2024-06-07',
@@ -370,9 +393,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$checkData = [
 			'arrivalDate' => '2024-06-01',
 			'departureDate' => '2024-06-07',
@@ -389,9 +412,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getRates();
 
 		self::assertNull($result);
@@ -401,9 +424,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$filters = [
 			'apartmentId' => 123,
 			'from' => '2024-01-01',
@@ -418,9 +441,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$rateData = [
 			'apartmentId' => 123,
 			'startDate' => '2024-06-01',
@@ -447,9 +470,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$rateData = [
 			'apartmentId' => 123,
 			'startDate' => '2024-06-01',
@@ -482,9 +505,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getPriceElements(456);
 
 		self::assertNull($result);
@@ -505,9 +528,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$priceElementData = [
 			'type' => 'cleaning',
 			'name' => 'Cleaning fee',
@@ -549,9 +572,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$priceElementData = [
 			'type' => 'cleaning',
 			'name' => 'Cleaning fee',
@@ -568,9 +591,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$priceElementData = [
 			'type' => 'cleaning',
 			'name' => 'Updated cleaning fee',
@@ -607,9 +630,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->deletePriceElement(456, 789);
 
 		self::assertFalse($result);
@@ -634,9 +657,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getGuests();
 
 		self::assertNull($result);
@@ -646,9 +669,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$filters = [
 			'page' => 1,
 			'pageSize' => 50,
@@ -662,9 +685,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getGuest(123);
 
 		self::assertNull($result);
@@ -689,9 +712,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getMessages(456);
 
 		self::assertNull($result);
@@ -712,9 +735,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getMessageThreads();
 
 		self::assertNull($result);
@@ -724,9 +747,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->sendMessageToGuest(456, 'Hello guest!');
 
 		self::assertNull($result);
@@ -758,9 +781,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$options = [
 			'subject' => 'Welcome',
 			'sendCopy' => true,
@@ -774,9 +797,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->sendMessageToHost(456, 'Internal note');
 
 		self::assertNull($result);
@@ -808,9 +831,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$options = ['subject' => 'Important note'];
 		$result = $smoobu->sendMessageToHost(456, 'Internal note', $options);
 
@@ -825,9 +848,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getAddons();
 
 		self::assertNull($result);
@@ -837,9 +860,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getApartmentAddons(123);
 
 		self::assertNull($result);
@@ -864,9 +887,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getReservationPlaceholders(456);
 
 		self::assertNull($result);
@@ -887,9 +910,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getCustomPlaceholders();
 
 		self::assertNull($result);
@@ -899,9 +922,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$placeholderData = [
 			'name' => 'custom_field',
 			'value' => 'Default value',
@@ -926,9 +949,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$placeholderData = [
 			'name' => 'custom_field',
 			'value' => 'Default value',
@@ -947,9 +970,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$placeholderData = [
 			'name' => 'custom_field',
 			'value' => 'Updated value',
@@ -974,9 +997,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->deleteCustomPlaceholder(789);
 
 		self::assertFalse($result);
@@ -1001,9 +1024,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getOnlineCheckIn();
 
 		self::assertNull($result);
@@ -1013,9 +1036,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$filters = ['reservationId' => 456];
 		$result = $smoobu->getOnlineCheckIn($filters);
 
@@ -1026,9 +1049,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$checkInData = ['reservationId' => 456];
 		$result = $smoobu->createOnlineCheckIn($checkInData);
 
@@ -1050,9 +1073,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$checkInData = [
 			'reservationId' => 456,
 			'sendEmail' => true,
@@ -1070,9 +1093,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::exactly(3))
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 
 		$result1 = $smoobu->getApartments();
 		$result2 = $smoobu->getReservations();
@@ -1085,19 +1108,43 @@ class SmoobuTest extends TestCase
 
 	public function testApiKeyCanBeChangedAfterInstantiation(): void
 	{
-		$smoobu = new Smoobu('initial-key');
+		$smoobu = new Smoobu('initial-key', 'initial-secret');
 		$smoobu->setApiKey('new-key');
 
 		self::assertInstanceOf(Smoobu::class, $smoobu);
+	}
+
+	public function testApiKeySetButApiSecretMissing(): void
+	{
+		$this->logger->expects(self::once())
+			->method('error')
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
+
+		$smoobu = new Smoobu('test-api-key', null, $this->logger);
+		$result = $smoobu->getApartments();
+
+		self::assertNull($result);
+	}
+
+	public function testApiSecretSetButApiKeyMissing(): void
+	{
+		$this->logger->expects(self::once())
+			->method('error')
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
+
+		$smoobu = new Smoobu(null, 'test-api-secret', $this->logger);
+		$result = $smoobu->getApartments();
+
+		self::assertNull($result);
 	}
 
 	public function testEmptyFiltersArray(): void
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getReservations([]);
 
 		self::assertNull($result);
@@ -1119,9 +1166,9 @@ class SmoobuTest extends TestCase
 	{
 		$this->logger->expects(self::once())
 			->method('error')
-			->with('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+			->with('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 
-		$smoobu = new Smoobu(null, $this->logger);
+		$smoobu = new Smoobu(null, null, $this->logger);
 		$result = $smoobu->getApartment(1);
 
 		self::assertNull($result);

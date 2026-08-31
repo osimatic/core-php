@@ -281,4 +281,27 @@ final class URLTest extends TestCase
 		$this->assertSame('id=1', URL::getQueryString('http://example.com/path?id=1'));
 		$this->assertSame('?id=1', URL::getQueryString('http://example.com/path?id=1', true));
 	}
+
+	/* ===================== buildSortedQueryString() ===================== */
+
+	public function testBuildSortedQueryString(): void
+	{
+		// Empty params
+		$this->assertSame('', URL::buildSortedQueryString([]));
+
+		// Single param
+		$this->assertSame('id=1', URL::buildSortedQueryString(['id' => 1]));
+
+		// Params sorted alphabetically by key regardless of input order
+		$this->assertSame('id=1&page=2', URL::buildSortedQueryString(['page' => 2, 'id' => 1]));
+
+		// Values are percent-encoded (RFC 3986: spaces as %20, not +)
+		$this->assertSame('name=John%20Doe', URL::buildSortedQueryString(['name' => 'John Doe']));
+
+		// Array values use the repeated 'key[]=value' notation, without numeric index
+		$this->assertSame('apartments%5B%5D=123&apartments%5B%5D=456', URL::buildSortedQueryString(['apartments' => [123, 456]]));
+
+		// Array values mixed with scalar values, still sorted by key
+		$this->assertSame('apartments%5B%5D=123&apartments%5B%5D=456&page=2', URL::buildSortedQueryString(['page' => 2, 'apartments' => [123, 456]]));
+	}
 }

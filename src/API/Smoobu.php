@@ -5,6 +5,8 @@ namespace Osimatic\API;
 use Osimatic\Network\HTTPClient;
 use Osimatic\Network\HTTPMethod;
 use Osimatic\Network\HTTPRequestExecutor;
+use Osimatic\Network\URL;
+use Osimatic\Text\UUID;
 use Psr\Http\Client\ClientInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -13,6 +15,16 @@ use Psr\Log\NullLogger;
  * Client for interacting with the Smoobu API.
  * Smoobu is a vacation rental management platform that provides property management, booking management, channel management, and guest communication features.
  * This class provides methods to manage apartments/properties, reservations, rates, guests, messages, and more.
+ *
+ * Each request is authenticated using HMAC-SHA256 signing (the legacy "Api-Key" header authentication has been removed, as it is discontinued by Smoobu on 2026-09-25).
+ * The following headers are sent with every request:
+ *   X-API-Key   : Smoobu public API key (e.g. usr_live_abc123)
+ *   X-Timestamp : Current UTC timestamp in ISO 8601 format (e.g. 2026-04-01T12:00:00Z)
+ *   X-Nonce     : Unique UUID v4 generated per request
+ *   X-Signature : Base64-encoded HMAC-SHA256 signature of the canonical request string
+ *
+ * Canonical string format:
+ *   METHOD\n/path\nsorted_query_string\nTIMESTAMP\nNONCE\nBODY_SHA256_HASH\nAPI_KEY
  *
  * @link https://docs.smoobu.com/ Official Smoobu API documentation
  * @link https://www.smoobu.com/ Smoobu website
@@ -43,12 +55,14 @@ class Smoobu
 	/**
 	 * Initializes a new Smoobu API client instance.
 	 *
-	 * @param string|null $apiKey The Smoobu API key for authentication
+	 * @param string|null $apiKey The Smoobu public API key used for HMAC authentication
+	 * @param string|null $apiSecret The Smoobu API secret used to sign requests (HMAC-SHA256)
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
 	 * @param ClientInterface $httpClient The PSR-18 HTTP client instance used for making API requests (default: HTTPClient)
 	 */
 	public function __construct(
 		private ?string $apiKey = null,
+		private ?string $apiSecret = null,
 		private readonly LoggerInterface $logger = new NullLogger(),
 		ClientInterface $httpClient = new HTTPClient(),
 	)
@@ -57,14 +71,26 @@ class Smoobu
 	}
 
 	/**
-	 * Sets the Smoobu API key for authentication.
+	 * Sets the Smoobu API key used for HMAC authentication.
 	 *
-	 * @param string $apiKey The Smoobu API key
+	 * @param string $apiKey The Smoobu public API key
 	 * @return self Returns this instance for method chaining
 	 */
 	public function setApiKey(string $apiKey): self
 	{
 		$this->apiKey = $apiKey;
+		return $this;
+	}
+
+	/**
+	 * Sets the Smoobu API secret used to sign requests (HMAC-SHA256).
+	 *
+	 * @param string $apiSecret The Smoobu API secret
+	 * @return self Returns this instance for method chaining
+	 */
+	public function setApiSecret(string $apiSecret): self
+	{
+		$this->apiSecret = $apiSecret;
 		return $this;
 	}
 
@@ -676,42 +702,61 @@ class Smoobu
 	// ========================================
 
 	/**
-	 * Executes an HTTP request to the Smoobu API with authentication.
-	 * This method handles the common request logic for all API calls, including authentication, error handling, and rate limit awareness.
+	 * Executes an HTTP request to the Smoobu API, signed with HMAC-SHA256 authentication.
+	 * This method handles the common request logic for all API calls, including signing, error handling, and rate limit awareness.
 	 *
 	 * @param string $endpoint The API endpoint path (e.g., '/api/apartments')
 	 * @param HTTPMethod $httpMethod The HTTP method to use (GET, POST, PUT, DELETE)
-	 * @param array $queryParams Optional query parameters for GET requests
+	 * @param array $queryParams Optional query parameters for GET/DELETE requests
 	 * @param array $bodyData Optional request body data for POST/PUT requests
 	 * @return array|null The decoded JSON response as an associative array if successful, null on failure
 	 */
 	private function sendRequest(string $endpoint, HTTPMethod $httpMethod, array $queryParams = [], array $bodyData = []): ?array
 	{
-		if (empty($this->apiKey)) {
-			$this->logger->error('Smoobu API key is not configured. Please set the API key using setApiKey() method.');
+		if (empty($this->apiKey) || empty($this->apiSecret)) {
+			$this->logger->error('Smoobu API key/secret is not configured. Please set them using setApiKey() and setApiSecret() methods.');
 			return null;
 		}
 
-		$url = self::API_URL . $endpoint;
+		// Query string is built once and reused both for signing and for the actual request, so the signed value always matches what is sent
+		$sortedQueryString = URL::buildSortedQueryString($queryParams);
+		$timestamp = gmdate('Y-m-d\TH:i:s\Z');
+		$nonce = UUID::generate();
+		$bodyJson = !empty($bodyData) ? json_encode($bodyData) : '';
+		$bodyHash = hash('sha256', $bodyJson);
 
-		// Add query parameters to URL for GET requests
-		if (!empty($queryParams) && $httpMethod === HTTPMethod::GET) {
-			$url .= '?' . http_build_query($queryParams);
+		$canonicalString = implode("\n", [
+			$httpMethod->value,
+			$endpoint,
+			$sortedQueryString,
+			$timestamp,
+			$nonce,
+			$bodyHash,
+			$this->apiKey,
+		]);
+		$signature = base64_encode(hash_hmac('sha256', $canonicalString, $this->apiSecret, true));
+
+		$url = self::API_URL . $endpoint;
+		if ('' !== $sortedQueryString) {
+			$url .= '?' . $sortedQueryString;
 		}
 
-		// Set custom headers for API authentication
+		// Set custom headers for HMAC authentication
 		$headers = [
-			'Api-Key' => $this->apiKey,
-			'Content-Type' => 'application/json',
+			'X-API-Key' => $this->apiKey,
+			'X-Timestamp' => $timestamp,
+			'X-Nonce' => $nonce,
+			'X-Signature' => $signature,
 			'Accept' => 'application/json',
 		];
 
-		// Execute the request
+		// Execute the request (query params are already embedded in the signed URL for GET/DELETE)
 		$result = $this->requestExecutor->execute(
 			$httpMethod,
 			$url,
-			$httpMethod === HTTPMethod::GET ? [] : $bodyData,
+			in_array($httpMethod, [HTTPMethod::GET, HTTPMethod::DELETE], true) ? [] : $bodyData,
 			headers: $headers,
+			jsonBody: true,
 			decodeJson: true
 		);
 

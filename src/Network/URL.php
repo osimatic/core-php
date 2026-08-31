@@ -250,6 +250,29 @@ class URL
 		return $queryString;
 	}
 
+	// ========== Building Query Strings ==========
+
+	/**
+	 * Builds a query string from parameters, with keys sorted alphabetically and RFC 3986 percent-encoding.
+	 * Array values are rendered using the repeated 'key[]=value' notation (no numeric index) rather than the default 'key[0]=value' produced by http_build_query(), which is required by some signed APIs (e.g. HMAC request signing) so that the query string used to compute the signature is guaranteed to match the one actually sent.
+	 * @param array $queryParams The query parameters to encode, may contain array values
+	 * @return string The sorted, percent-encoded query string (without leading '?'), empty string if no parameters
+	 * @link https://www.php.net/manual/en/function.http-build-query.php PHP http_build_query() documentation
+	 */
+	public static function buildSortedQueryString(array $queryParams): string
+	{
+		if (empty($queryParams)) {
+			return '';
+		}
+
+		ksort($queryParams);
+
+		$queryString = http_build_query($queryParams, '', '&', PHP_QUERY_RFC3986);
+
+		// http_build_query() indexes array values (key%5B0%5D=...); collapse to the plain repeated key%5B%5D=... notation
+		return preg_replace('/%5B\d+%5D/', '%5B%5D', $queryString);
+	}
+
 	// ========== DEPRECATED METHODS (Backward Compatibility) ==========
 	// Backward compatibility. Will be removed in a future major version. Please update your code to use the new method names.
 
