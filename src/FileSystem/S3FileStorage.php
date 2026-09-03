@@ -3,6 +3,7 @@
 namespace Osimatic\FileSystem;
 
 use AsyncAws\Core\Exception\Http\HttpException;
+use AsyncAws\S3\Input\GetObjectRequest;
 use AsyncAws\S3\S3Client;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -30,14 +31,14 @@ class S3FileStorage implements FileStorageInterface
 
 	// ========== Public Methods ==========
 
-	public function write(string $key, string $localFilePath): bool
+	public function write(string $key, string $localFilePath, bool $public = true): bool
 	{
 		try {
 			$this->client->putObject([
 				'Bucket' => $this->bucket,
 				'Key' => $key,
 				'Body' => fopen($localFilePath, 'rb'),
-				'ACL' => 'public-read',
+				'ACL' => $public ? 'public-read' : 'private',
 			])->resolve();
 		} catch (HttpException $e) {
 			$this->logger->error('Failed to write file to S3 storage.', [
@@ -55,6 +56,23 @@ class S3FileStorage implements FileStorageInterface
 		]);
 
 		return true;
+	}
+
+	public function read(string $key): ?string
+	{
+		try {
+			return $this->client->getObject([
+				'Bucket' => $this->bucket,
+				'Key' => $key,
+			])->getBody()->getContentAsString();
+		} catch (HttpException $e) {
+			$this->logger->error('Failed to read file from S3 storage.', [
+				'bucket' => $this->bucket,
+				'key' => $key,
+				'error' => $e->getMessage(),
+			]);
+			return null;
+		}
 	}
 
 	public function exists(string $key): bool
@@ -87,6 +105,14 @@ class S3FileStorage implements FileStorageInterface
 		]);
 
 		return true;
+	}
+
+	public function getTemporaryUrl(string $key, \DateTimeImmutable $expiration): string
+	{
+		return $this->client->presign(new GetObjectRequest([
+			'Bucket' => $this->bucket,
+			'Key' => $key,
+		]), $expiration);
 	}
 
 	public function getUrl(string $key): string

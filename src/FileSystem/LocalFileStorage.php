@@ -26,7 +26,7 @@ class LocalFileStorage implements FileStorageInterface
 
 	// ========== Public Methods ==========
 
-	public function write(string $key, string $localFilePath): bool
+	public function write(string $key, string $localFilePath, bool $public = true): bool
 	{
 		$destinationPath = $this->getPath($key);
 		FileSystem::createDirectories($destinationPath);
@@ -46,6 +46,25 @@ class LocalFileStorage implements FileStorageInterface
 		]);
 
 		return true;
+	}
+
+	public function read(string $key): ?string
+	{
+		$path = $this->getPath($key);
+		if (!file_exists($path)) {
+			return null;
+		}
+
+		$content = file_get_contents($path);
+		if (false === $content) {
+			$this->logger->error('Failed to read file from local storage.', [
+				'key' => $key,
+				'path' => $path,
+			]);
+			return null;
+		}
+
+		return $content;
 	}
 
 	public function exists(string $key): bool
@@ -79,6 +98,11 @@ class LocalFileStorage implements FileStorageInterface
 	public function getUrl(string $key): string
 	{
 		return rtrim($this->baseUrl, '/').'/'.ltrim($key, '/');
+	}
+
+	public function getTemporaryUrl(string $key, \DateTimeImmutable $expiration): string
+	{
+		return $this->getUrl($key);
 	}
 
 	// ========== Helper Methods ==========
