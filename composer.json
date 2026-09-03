@@ -30,11 +30,18 @@
 		"johngrogg/ics-parser": "^3",
 		"symfony/http-foundation": "^7 || ^8",
 		"phpmailer/phpmailer": "^7",
-		"minishlink/web-push": "^10",
+		"minishlink/web-push": "^11",
+		"guzzlehttp/guzzle": "^7",
 		"twig/twig": "^3",
-		"digitickets/lalit": "^3",
+		"digitickets/lalit": "^4",
 		"commerceguys/addressing": "^2",
-		"matomo/device-detector": "^6.5"
+		"matomo/device-detector": "^6.5",
+		"async-aws/s3": "^3.4"
+	},
+	"config": {
+		"allow-plugins": {
+			"php-http/discovery": true
+		}
 	},
 	"license": "mit",
 	"authors": [
