@@ -121,12 +121,12 @@ class Input
 	 * $missing = Input::getBool($request, 'nonexistent', true); // Returns: true (default)
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to retrieve
 	 * @param bool $default The default value if parameter is missing or invalid (default: false)
 	 * @return bool The parsed boolean value or default
 	 */
-	public static function getBool(Request|InputInterface $input, string $key, bool $default=false): bool
+	public static function getBool(Request|InputInterface|InputBag $input, string $key, bool $default=false): bool
 	{
 		$value = self::get($input, $key);
 		$result = FormService::parseBoolean($value);
@@ -154,14 +154,14 @@ class Input
 	 * $invalid = Input::getInt($request, 'invalid', 0); // Returns: 0 (default)
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to retrieve
 	 * @param int $default The default value if parameter is missing or invalid (default: 0)
 	 * @param int|null $min Minimum allowed value (inclusive, default: null for no minimum)
 	 * @param int|null $max Maximum allowed value (inclusive, default: null for no maximum)
 	 * @return int The parsed integer value (within range) or default
 	 */
-	public static function getInt(Request|InputInterface $input, string $key, int $default=0, ?int $min=null, ?int $max=null): int
+	public static function getInt(Request|InputInterface|InputBag $input, string $key, int $default=0, ?int $min=null, ?int $max=null): int
 	{
 		$value = self::get($input, $key);
 		$result = FormService::parseInteger($value, $min, $max);
@@ -186,14 +186,14 @@ class Input
 	 * $discount = Input::getFloat($request, 'discount', 0.0, 0.0, 100.0); // Returns: 0-100 or default
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to retrieve
 	 * @param float $default The default value if parameter is missing or invalid (default: 0.0)
 	 * @param float|null $min Minimum allowed value (inclusive, default: null for no minimum)
 	 * @param float|null $max Maximum allowed value (inclusive, default: null for no maximum)
 	 * @return float The parsed float value (within range) or default
 	 */
-	public static function getFloat(Request|InputInterface $input, string $key, float $default=0.0, ?float $min=null, ?float $max=null): float
+	public static function getFloat(Request|InputInterface|InputBag $input, string $key, float $default=0.0, ?float $min=null, ?float $max=null): float
 	{
 		$value = self::get($input, $key);
 		$result = FormService::parseFloat($value, $min, $max);
@@ -218,13 +218,13 @@ class Input
 	 * $missing = Input::getString($request, 'nonexistent', 'Guest'); // Returns: 'Guest'
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to retrieve
 	 * @param string $default The default value if parameter is missing (default: '')
 	 * @param bool $trim Whether to trim whitespace from the value (default: true)
 	 * @return string The string value (optionally trimmed) or default
 	 */
-	public static function getString(Request|InputInterface $input, string $key, string $default='', bool $trim=true): string
+	public static function getString(Request|InputInterface|InputBag $input, string $key, string $default='', bool $trim=true): string
 	{
 		$value = self::get($input, $key);
 
@@ -263,14 +263,14 @@ class Input
 	 * $values = Input::getArray($request, 'values', [], null, false); // Keeps empty values
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to retrieve
 	 * @param array $default The default value if parameter is missing (default: [])
 	 * @param string|null $separator If provided and input is a string, split by this separator (default: null)
 	 * @param bool $filterEmpty Whether to filter out empty values (default: true)
 	 * @return array The parsed array or default
 	 */
-	public static function getArray(Request|InputInterface $input, string $key, array $default=[], ?string $separator=null, bool $filterEmpty=true): array
+	public static function getArray(Request|InputInterface|InputBag $input, string $key, array $default=[], ?string $separator=null, bool $filterEmpty=true): array
 	{
 		$value = self::get($input, $key);
 
@@ -294,12 +294,16 @@ class Input
 	 * }
 	 * ```
 	 *
-	 * @param Request|InputInterface $input The HTTP Request or CLI InputInterface
+	 * @param Request|InputInterface|InputBag $input The HTTP Request or CLI InputInterface
 	 * @param string $key The parameter name to check
 	 * @return bool True if the parameter exists, false otherwise
 	 */
-	public static function has(Request|InputInterface $input, string $key): bool
+	public static function has(Request|InputInterface|InputBag $input, string $key): bool
 	{
+		if ($input instanceof InputBag) {
+			return $input->has($key);
+		}
+
 		if ($input instanceof Request) {
 			return $input->query->has($key) || $input->request->has($key);
 		}
