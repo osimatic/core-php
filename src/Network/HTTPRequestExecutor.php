@@ -83,7 +83,7 @@ readonly class HTTPRequestExecutor
 		// Decode JSON if requested
 		if ($decodeJson) {
 			try {
-				return \GuzzleHttp\Utils::jsonDecode($responseBody, true);
+				return json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
 			}
 			catch (\Exception $e) {
 				$this->logger->error('Error during JSON decoding. Error: '.$e->getMessage());

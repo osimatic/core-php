@@ -161,7 +161,7 @@ class FirebaseMessaging implements MobilePushNotificationSenderInterface
 		$responseBody = (string) $result->getBody();
 
 		try {
-			$responseData = \GuzzleHttp\Utils::jsonDecode($responseBody, true);
+			$responseData = json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
 		} catch (\Exception $e) {
 			$this->logger->error('Failed to decode response: ' . $e->getMessage());
 			return new PushNotificationSendingResponse(false, PushNotificationSendingStatus::UNKNOWN);
