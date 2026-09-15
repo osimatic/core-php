@@ -11,6 +11,7 @@ namespace Osimatic\Calendar;
  * - List Generation: Generate lists of dates, weeks, months within periods
  * - Validation: Check if periods represent full weeks, months, or years
  * - Period Operations: Check containment, overlaps, and split periods
+ * - Timeline Layout: Assign lane indices to overlapping intervals for Gantt-like visual layouts
  * - Labeling: Generate human-readable period labels
  * - Generic Utilities: Period-based list generation with type support
  */
@@ -562,6 +563,47 @@ class DatePeriod
 		}
 
 		return false;
+	}
+
+	// ========== Timeline Layout ==========
+
+	/**
+	 * Assigns a lane index to each interval of a set of possibly overlapping time intervals, so that intervals sharing the same lane never overlap.
+	 * Uses a greedy "first-fit" algorithm: intervals are processed in start-time order, and each one is placed in the first lane whose last interval already ended, or in a new lane otherwise. This does not attempt to minimize the number of lanes (unlike an optimal interval graph coloring) but is enough for simple visual layouts such as a Gantt-like timeline where overlapping items are stacked.
+	 * @param array<int|string, array{start: \DateTime, end: \DateTime}> $intervals Map of intervals (same shape as returned by getOverlap()), keyed by any identifier (e.g. the source event index) so the lane assignment can be matched back to the original data
+	 * @return array<int|string, int> Lane index (starting at 0) for each interval, using the same keys as $intervals
+	 */
+	public static function assignLanes(array $intervals): array
+	{
+		uasort($intervals, static fn(array $a, array $b) => $a['start'] <=> $b['start']);
+
+		$laneEndTimes = [];
+		$laneByKey = [];
+		foreach ($intervals as $key => $interval) {
+			$lane = null;
+			foreach ($laneEndTimes as $laneIndex => $laneEndTime) {
+				if ($laneEndTime <= $interval['start']) {
+					$lane = $laneIndex;
+					break;
+				}
+			}
+			$lane ??= count($laneEndTimes);
+
+			$laneEndTimes[$lane] = $interval['end'];
+			$laneByKey[$key] = $lane;
+		}
+
+		return $laneByKey;
+	}
+
+	/**
+	 * Counts the number of lanes used by a lane assignment returned by assignLanes().
+	 * @param array<int|string, int> $laneAssignments Lane index per interval, as returned by assignLanes()
+	 * @return int The number of lanes (0 if $laneAssignments is empty)
+	 */
+	public static function getNbLanes(array $laneAssignments): int
+	{
+		return empty($laneAssignments) ? 0 : (max($laneAssignments) + 1);
 	}
 
 	// ========== Labeling Methods ==========

@@ -800,6 +800,46 @@ final class DatePeriodTest extends TestCase
 		$this->assertEmpty($parts);
 	}
 
+	public function testAssignLanes(): void
+	{
+		// Two non-overlapping intervals: both get lane 0
+		$intervals = [
+			'a' => ['start' => new \DateTime('2024-01-15 08:00'), 'end' => new \DateTime('2024-01-15 12:00')],
+			'b' => ['start' => new \DateTime('2024-01-15 14:00'), 'end' => new \DateTime('2024-01-15 18:00')],
+		];
+		$lanes = DatePeriod::assignLanes($intervals);
+		$this->assertEquals(0, $lanes['a']);
+		$this->assertEquals(0, $lanes['b']);
+		$this->assertEquals(1, DatePeriod::getNbLanes($lanes));
+
+		// Two overlapping intervals: different lanes
+		$intervals = [
+			'a' => ['start' => new \DateTime('2024-01-15 08:00'), 'end' => new \DateTime('2024-01-15 12:00')],
+			'b' => ['start' => new \DateTime('2024-01-15 10:00'), 'end' => new \DateTime('2024-01-15 14:00')],
+		];
+		$lanes = DatePeriod::assignLanes($intervals);
+		$this->assertNotEquals($lanes['a'], $lanes['b']);
+		$this->assertEquals(2, DatePeriod::getNbLanes($lanes));
+
+		// Three intervals: a and c overlap b, but not each other => a and c can share a lane
+		$intervals = [
+			'a' => ['start' => new \DateTime('2024-01-15 08:00'), 'end' => new \DateTime('2024-01-15 10:00')],
+			'b' => ['start' => new \DateTime('2024-01-15 09:00'), 'end' => new \DateTime('2024-01-15 12:00')],
+			'c' => ['start' => new \DateTime('2024-01-15 11:00'), 'end' => new \DateTime('2024-01-15 13:00')],
+		];
+		$lanes = DatePeriod::assignLanes($intervals);
+		$this->assertEquals($lanes['a'], $lanes['c']);
+		$this->assertNotEquals($lanes['a'], $lanes['b']);
+		$this->assertEquals(2, DatePeriod::getNbLanes($lanes));
+
+		// Original array keys are preserved, including non-sequential/string keys
+		$this->assertEqualsCanonicalizing(['a', 'b', 'c'], array_keys($lanes));
+
+		// Empty input
+		$this->assertSame([], DatePeriod::assignLanes([]));
+		$this->assertEquals(0, DatePeriod::getNbLanes([]));
+	}
+
 	public function testHasWeekendDayBetween(): void
 	{
 		// Same day — nothing strictly between
