@@ -419,6 +419,17 @@ class Str
 		return ctype_alnum($string) && !ctype_digit($string);
 	}
 
+	/**
+	 * Checks if a string contains at least one character from a non-Latin script (Cyrillic, Arabic, Hebrew, CJK, etc.).
+	 * Useful to detect text produced on a device set to a non-Latin locale.
+	 * @param string $string The string to check
+	 * @return bool True if the string contains at least one non-Latin script character, false otherwise
+	 */
+	public static function containsNonLatinScript(string $string): bool
+	{
+		return 1 === preg_match('/\p{Cyrillic}|\p{Arabic}|\p{Hebrew}|\p{Han}|\p{Hiragana}|\p{Katakana}|\p{Hangul}|\p{Thai}|\p{Armenian}|\p{Georgian}|\p{Devanagari}/u', $string);
+	}
+
 	// ========== Character Counting ==========
 
 	/**

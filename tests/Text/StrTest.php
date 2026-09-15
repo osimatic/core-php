@@ -234,6 +234,18 @@ final class StrTest extends TestCase
 		$this->assertFalse(Str::ctype_alpha_and_num('test-123'));
 	}
 
+	/* ===================== containsNonLatinScript() ===================== */
+
+	public function testContainsNonLatinScript(): void
+	{
+		$this->assertFalse(Str::containsNonLatinScript('12 Rue de la Paix, 75002 Paris'));
+		$this->assertFalse(Str::containsNonLatinScript("Chem. d'Urrutiā, Élise"));
+		$this->assertTrue(Str::containsNonLatinScript('Москва, Россия'));
+		$this->assertTrue(Str::containsNonLatinScript('شارع الملك فهد'));
+		$this->assertTrue(Str::containsNonLatinScript('東京都渋谷区'));
+		$this->assertTrue(Str::containsNonLatinScript('12 Rue de la Paix, Москва'));
+	}
+
 	/* ===================== getStringWithBlank() ===================== */
 
 	public function testGetStringWithBlank(): void
