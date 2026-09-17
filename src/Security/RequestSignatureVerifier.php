@@ -129,8 +129,7 @@ class RequestSignatureVerifier
 		}
 
 		// 3. Rebuild the canonical string and compare signatures.
-		$canonical = $this->buildCanonical($timestamp, $nonce, $signedFields, $postData);
-		$expected = base64_encode(hash_hmac('sha256', $canonical, $this->secret, true));
+		$expected = $this->generateSignature($timestamp, $nonce, $signedFields, $postData);
 
 		if (!hash_equals($expected, $signature)) {
 			$this->logger->warning('Request signature verification failed: signature mismatch.', [
@@ -149,6 +148,30 @@ class RequestSignatureVerifier
 		]);
 
 		return true;
+	}
+
+	// ========================================
+	// Signature Generation Methods
+	// ========================================
+
+	/**
+	 * Generates the HMAC-SHA256 signature for a request, using the same canonical
+	 * string format expected by verify().
+	 *
+	 * Intended to be used by the client responsible for signing outgoing requests,
+	 * and internally by verify() to compute the expected signature.
+	 *
+	 * @param string $timestamp Unix timestamp string to include in the signed payload
+	 * @param string $nonce One-time random value to include in the signed payload
+	 * @param array $signedFields Ordered list of field names to include in the signature
+	 * @param array $postData Request POST body used to resolve field values
+	 * @return string The base64-encoded HMAC-SHA256 signature
+	 */
+	public function generateSignature(string $timestamp, string $nonce, array $signedFields, array $postData): string
+	{
+		$canonical = $this->buildCanonical($timestamp, $nonce, $signedFields, $postData);
+
+		return base64_encode(hash_hmac('sha256', $canonical, $this->secret, true));
 	}
 
 	// ========================================

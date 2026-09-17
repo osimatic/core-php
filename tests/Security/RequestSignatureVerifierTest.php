@@ -22,13 +22,7 @@ class RequestSignatureVerifierTest extends TestCase
         string $nonce = 'test-nonce-abc123'
     ): array {
         $timestamp ??= (string) time();
-
-        $parts = [];
-        foreach ($signedFields as $key) {
-            $parts[] = $key . '=' . (isset($postData[$key]) ? (string) $postData[$key] : '');
-        }
-        $canonical = $timestamp . "\n" . $nonce . "\n" . implode('&', $parts);
-        $signature = base64_encode(hash_hmac('sha256', $canonical, $secret, true));
+        $signature = (new RequestSignatureVerifier($secret))->generateSignature($timestamp, $nonce, $signedFields, $postData);
 
         return [
             'X-Timestamp' => $timestamp,
@@ -167,5 +161,54 @@ class RequestSignatureVerifierTest extends TestCase
         $headers = $this->makeHeaders($secret, [], $postData);
         $verifier->verify($postData, $headers, []);
         self::assertTrue(true);
+    }
+
+    // ========================================
+    // Signature Generation Methods Tests
+    // ========================================
+
+    public function testGenerateSignature(): void
+    {
+        $secret       = 'super-secret-key';
+        $timestamp    = (string) time();
+        $nonce        = 'test-nonce-abc123';
+        $postData     = ['action' => 'submit', 'user_id' => '42', 'payload' => 'hello'];
+        $signedFields = ['action', 'payload', 'user_id'];
+        $verifier     = new RequestSignatureVerifier($secret);
+
+        // --- Deterministic: same input produces the same signature ---
+        $signature1 = $verifier->generateSignature($timestamp, $nonce, $signedFields, $postData);
+        $signature2 = $verifier->generateSignature($timestamp, $nonce, $signedFields, $postData);
+        self::assertSame($signature1, $signature2);
+
+        // --- Different secret produces a different signature ---
+        $otherSecretVerifier = new RequestSignatureVerifier('another-secret');
+        self::assertNotSame($signature1, $otherSecretVerifier->generateSignature($timestamp, $nonce, $signedFields, $postData));
+
+        // --- Different postData value produces a different signature ---
+        $tamperedData = array_merge($postData, ['user_id' => '99']);
+        self::assertNotSame($signature1, $verifier->generateSignature($timestamp, $nonce, $signedFields, $tamperedData));
+
+        // --- Different timestamp produces a different signature ---
+        self::assertNotSame($signature1, $verifier->generateSignature((string) (time() + 1), $nonce, $signedFields, $postData));
+
+        // --- Different nonce produces a different signature ---
+        self::assertNotSame($signature1, $verifier->generateSignature($timestamp, 'another-nonce', $signedFields, $postData));
+
+        // --- Missing field in postData: treated as empty string, consistent with buildCanonical() ---
+        $postDataWithMissing = ['action' => 'submit', 'user_id' => '42']; // 'payload' absent
+        self::assertNotSame($signature1, $verifier->generateSignature($timestamp, $nonce, $signedFields, $postDataWithMissing));
+
+        // --- Empty signed fields list: signature based only on timestamp and nonce ---
+        $emptyFieldsSignature = $verifier->generateSignature($timestamp, $nonce, [], $postData);
+        self::assertSame($emptyFieldsSignature, $verifier->generateSignature($timestamp, $nonce, [], $tamperedData));
+
+        // --- Consistency with verify(): a generated signature must be accepted by verify() ---
+        $headers = [
+            'X-Timestamp' => $timestamp,
+            'X-Nonce'     => $nonce,
+            'X-Signature' => $signature1,
+        ];
+        self::assertTrue($verifier->verify($postData, $headers, $signedFields));
     }
 }
