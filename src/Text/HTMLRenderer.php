@@ -4,6 +4,8 @@ namespace Osimatic\Text;
 
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Bridge\Twig\Extension\TranslationExtension;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * HTML template renderer using Twig template engine.
@@ -17,15 +19,21 @@ class HTMLRenderer
 	 * Creates a new HTML renderer with Twig environment.
 	 * @param string $templateDir The directory containing template files
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
+	 * @param TranslatorInterface|null $translator Optional translator, to enable the "trans" filter and function in templates
 	 * @param array $twigOptions Optional Twig configuration options (cache, debug, etc.)
 	 */
 	public function __construct(
 		string $templateDir = __DIR__.'/../templates/',
 		private LoggerInterface $logger = new NullLogger(),
+		private ?TranslatorInterface $translator = null,
 		array $twigOptions = [],
 	) {
 		$loader = new \Twig\Loader\FilesystemLoader($templateDir);
 		$this->twig = new \Twig\Environment($loader, $twigOptions);
+
+		if (null !== $this->translator) {
+			$this->twig->addExtension(new TranslationExtension($this->translator));
+		}
 
 		foreach (self::getTwigFilters() as $filter) {
 			$this->twig->addFilter($filter);
@@ -52,6 +60,17 @@ class HTMLRenderer
 	}
 
 	/**
+	 * Sets the locale used to resolve translations in templates (has no effect if no translator was provided).
+	 * @param string $locale The locale to use (e.g. "fr", "en")
+	 * @return self Returns this instance for method chaining
+	 */
+	public function setLocale(string $locale): self
+	{
+		$this->translator?->setLocale($locale);
+		return $this;
+	}
+
+	/**
 	 * Gets the Twig environment for advanced configuration.
 	 * @return \Twig\Environment The Twig environment instance
 	 */
@@ -61,13 +80,29 @@ class HTMLRenderer
 	}
 
 	/**
+	 * Registers an additional custom filter on the underlying template engine.
+	 * @param string $name The filter name, as used in templates (e.g. "{{ value|name }}")
+	 * @param callable $callback The callback invoked to apply the filter
+	 * @return self Returns this instance for method chaining
+	 */
+	public function addFilter(string $name, callable $callback): self
+	{
+		$this->twig->addFilter(new \Twig\TwigFilter($name, $callback));
+		return $this;
+	}
+
+	/**
 	 * Renders a template file with the provided data.
 	 * @param string $templateFile The name of the template file to render
 	 * @param array $templateData Associative array of data to pass to the template
+	 * @param string|null $locale The locale to use for translations, if a translator was provided
 	 * @return string|null The rendered HTML, or null on error
 	 */
-	public function render(string $templateFile, array $templateData=[]): ?string
+	public function render(string $templateFile, array $templateData=[], ?string $locale=null): ?string
 	{
+		if (null !== $locale) {
+			$this->setLocale($locale);
+		}
 		try {
 			return $this->twig->render($templateFile, $templateData);
 		}
