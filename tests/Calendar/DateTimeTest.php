@@ -1076,6 +1076,18 @@ final class DateTimeTest extends TestCase
 		$this->assertEquals(90, $seconds);
 	}
 
+	public function testGetSecondsSinceMidnight(): void
+	{
+		$day = new \DateTime('2024-01-15 06:00:00');
+		$dateTime = new \DateTime('2024-01-15 10:01:30');
+		$seconds = DateTime::getSecondsSinceMidnight($dateTime, $day);
+		$this->assertEquals(10 * 3600 + 90, $seconds);
+
+		// Test with a datetime on the day following the reference day (range crossing midnight)
+		$nextDay = new \DateTime('2024-01-16 01:00:00');
+		$this->assertEquals(25 * 3600, DateTime::getSecondsSinceMidnight($nextDay, $day));
+	}
+
 	public function testGetTimestamp(): void
 	{
 		$dateTime = new \DateTime('2024-01-15 10:00:00');
@@ -1179,6 +1191,16 @@ final class DateTimeTest extends TestCase
 
 		// Original unchanged
 		$this->assertEquals('2024-01-22', $monday->format('Y-m-d'));
+	}
+
+	public function testStartOfDay(): void
+	{
+		$dateTime = new \DateTime('2024-01-15 14:30:45');
+		$result = DateTime::startOfDay($dateTime);
+		$this->assertEquals('2024-01-15 00:00:00', $result->format('Y-m-d H:i:s'));
+
+		// Original unchanged
+		$this->assertEquals('2024-01-15 14:30:45', $dateTime->format('Y-m-d H:i:s'));
 	}
 
 	/* ===================== Validation Methods ===================== */
