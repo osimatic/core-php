@@ -1388,6 +1388,18 @@ class DateTime
 	}
 
 	/**
+	 * Calculates the number of seconds elapsed since midnight of a reference day.
+	 * The reference day can differ from the day of $dateTime, which is useful for datetimes clipped to a range crossing midnight.
+	 * @param \DateTime $dateTime The datetime to calculate seconds for
+	 * @param \DateTime $day The reference day (only its date part is used)
+	 * @return int Number of seconds since midnight of the reference day
+	 */
+	public static function getSecondsSinceMidnight(\DateTime $dateTime, \DateTime $day): int
+	{
+		return self::getSecondsBetween(self::startOfDay($day), $dateTime, false);
+	}
+
+	/**
 	 * Gets the timestamp (Unix epoch seconds) for a DateTime.
 	 * @param \DateTime $dateTime The datetime
 	 * @return int Unix timestamp
@@ -1527,7 +1539,7 @@ class DateTime
 	 * @param \DateTime $dateTime The datetime to modify
 	 * @return \DateTime DateTime at 00:00:00
 	 */
-	private static function startOfDay(\DateTime $dateTime): \DateTime
+	public static function startOfDay(\DateTime $dateTime): \DateTime
 	{
 		$result = clone $dateTime;
 		$result->setTime(0, 0, 0);
