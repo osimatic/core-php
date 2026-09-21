@@ -102,7 +102,7 @@ class IPAddress
 	 * @param Request $request the HTTP request
 	 * @return string the client IP address, empty string if not found
 	 */
-	public function getFromRequest(Request $request): string
+	public static function getFromRequest(Request $request): string
 	{
 		$ip = $request->getClientIp();
 		if (empty($ip) || 'unknown' === $ip) {

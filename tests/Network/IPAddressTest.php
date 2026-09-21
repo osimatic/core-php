@@ -216,6 +216,42 @@ final class IPAddressTest extends TestCase
 		$this->assertFalse(IPAddress::isInRangeOfIpAddressesCidr('11.0.0.1', '10.0.0.0/8'));
 	}
 
+	/* ===================== getFromRequest() ===================== */
+
+	public function testGetFromRequest(): void
+	{
+		// Case: getClientIp() returns valid IP
+		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
+			->onlyMethods(['getClientIp'])
+			->getMock();
+		$requestMock->method('getClientIp')->willReturn('192.168.1.100');
+		$this->assertSame('192.168.1.100', IPAddress::getFromRequest($requestMock));
+
+		// Case: getClientIp() returns 'unknown' → fallback to $_SERVER
+		$_SERVER['REMOTE_ADDR'] = '10.0.0.1';
+		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
+			->onlyMethods(['getClientIp'])
+			->getMock();
+		$requestMock->method('getClientIp')->willReturn('unknown');
+		$this->assertSame('10.0.0.1', IPAddress::getFromRequest($requestMock));
+
+		// Case: getClientIp() returns empty → fallback to $_SERVER
+		$_SERVER['REMOTE_ADDR'] = '172.16.0.50';
+		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
+			->onlyMethods(['getClientIp'])
+			->getMock();
+		$requestMock->method('getClientIp')->willReturn('');
+		$this->assertSame('172.16.0.50', IPAddress::getFromRequest($requestMock));
+
+		// Case: getClientIp() empty and no $_SERVER → empty string
+		unset($_SERVER['REMOTE_ADDR']);
+		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
+			->onlyMethods(['getClientIp'])
+			->getMock();
+		$requestMock->method('getClientIp')->willReturn('');
+		$this->assertSame('', IPAddress::getFromRequest($requestMock));
+	}
+
 	/* ===================== isIpAddressInListOfIpAddress() ===================== */
 
 	public function testIsIpAddressInListOfIpAddressWithExactMatch(): void
