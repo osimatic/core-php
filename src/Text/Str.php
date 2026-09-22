@@ -89,6 +89,21 @@ class Str
 		return preg_replace('/\p{Mn}/u', '', $normalized);
 	}
 
+	/**
+	 * Fixes a string containing malformed UTF-8 by re-decoding it as legacy Windows-1252 data.
+	 * Useful for old data stored before a charset migration, where single bytes (e.g. accented letters) were left unconverted in a UTF-8 column.
+	 * @param string $string The string to fix
+	 * @return string A valid UTF-8 string
+	 */
+	public static function fixInvalidUtf8(string $string): string
+	{
+		if (mb_check_encoding($string, 'UTF-8')) {
+			return $string;
+		}
+
+		return mb_convert_encoding($string, 'UTF-8', 'Windows-1252');
+	}
+
 	// ========== String Comparison ==========
 
 	/**

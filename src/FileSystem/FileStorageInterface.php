@@ -2,6 +2,8 @@
 
 namespace Osimatic\FileSystem;
 
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+
 /**
  * Interface for file storage implementations (local filesystem, cloud object storage, etc.).
  * This interface must be implemented by any class that provides file write, existence check, deletion and URL resolution for a given storage key.
@@ -16,6 +18,16 @@ interface FileStorageInterface
 	 * @return bool True on success, false on failure
 	 */
 	public function write(string $key, string $localFilePath, bool $public = true): bool;
+
+	/**
+	 * Uploads a file (from an HTTP request) to the storage under the given key.
+	 * Handles both traditional file uploads and InputFile objects (base64 data).
+	 * @param string $key The storage key (relative path) under which the file is stored
+	 * @param InputFile|UploadedFile $uploadedFile The uploaded file to store
+	 * @param bool $public Whether the file should be publicly readable via getUrl() (default true); pass false for sensitive files that must only be accessed via getTemporaryUrl()
+	 * @return bool True on success, false on failure
+	 */
+	public function upload(string $key, InputFile|UploadedFile $uploadedFile, bool $public = true): bool;
 
 	/**
 	 * Reads and returns the content of the file stored under the given key.

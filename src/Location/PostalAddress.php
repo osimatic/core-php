@@ -281,7 +281,7 @@ class PostalAddress
 		// Country name sometimes returned in Cyrillic by Google Maps geocoding (e.g., "Франция" for France)
 		$value = str_replace('Франция', 'France', $value);
 
-		return \Osimatic\Text\Str::replaceAnnoyingChar($value);
+		return \Osimatic\Text\Str::fixInvalidUtf8(\Osimatic\Text\Str::replaceAnnoyingChar($value));
 	}
 
 

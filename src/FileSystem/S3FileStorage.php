@@ -7,6 +7,7 @@ use AsyncAws\S3\Input\GetObjectRequest;
 use AsyncAws\S3\S3Client;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * File storage implementation backed by an AWS S3 bucket, exposed as a public-read bucket.
@@ -56,6 +57,19 @@ class S3FileStorage implements FileStorageInterface
 		]);
 
 		return true;
+	}
+
+	public function upload(string $key, InputFile|UploadedFile $uploadedFile, bool $public = true): bool
+	{
+		$localFilePath = sys_get_temp_dir().'/'.uniqid('upload_', true);
+		if (!File::moveUploadedFile($uploadedFile, $localFilePath, $this->logger)) {
+			return false;
+		}
+
+		$isWritten = $this->write($key, $localFilePath, $public);
+		unlink($localFilePath);
+
+		return $isWritten;
 	}
 
 	public function read(string $key): ?string

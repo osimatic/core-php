@@ -4,6 +4,7 @@ namespace Osimatic\FileSystem;
 
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * File storage implementation backed by the local filesystem (or a mounted network share).
@@ -46,6 +47,19 @@ class LocalFileStorage implements FileStorageInterface
 		]);
 
 		return true;
+	}
+
+	public function upload(string $key, InputFile|UploadedFile $uploadedFile, bool $public = true): bool
+	{
+		$localFilePath = sys_get_temp_dir().'/'.uniqid('upload_', true);
+		if (!File::moveUploadedFile($uploadedFile, $localFilePath, $this->logger)) {
+			return false;
+		}
+
+		$isWritten = $this->write($key, $localFilePath, $public);
+		unlink($localFilePath);
+
+		return $isWritten;
 	}
 
 	public function read(string $key): ?string
