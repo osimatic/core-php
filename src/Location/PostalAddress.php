@@ -93,13 +93,6 @@ class PostalAddress
 	{
 		//return (new PostalAddressFormatter())->format($postalAddress, [], $separator, $withAttention);
 
-		$addressFormatRepository = new AddressFormatRepository();
-		$countryRepository = new CountryRepository();
-		$subdivisionRepository = new SubdivisionRepository();
-		$formatter = new DefaultFormatter($addressFormatRepository, $countryRepository, $subdivisionRepository, ['locale' => $locale ?? \Locale::getDefault()]);
-		// Options passed to the constructor or format() allow turning off
-		// html rendering, customizing the wrapper element and its attributes.
-
 		if (null === $postalAddress->getCountryCode()) {
 			return null;
 		}
@@ -124,14 +117,7 @@ class PostalAddress
 			}
 		}
 
-		try {
-			$formattedAddress = $formatter->format($address, ['html' => false]);
-			$formattedAddress = str_replace("\n", $separator, $formattedAddress);
-			return $formattedAddress;
-		}
-		catch (\ReflectionException) {}
-
-		return null;
+		return self::renderAddress($address, $separator, $locale);
 	}
 
 	/**
@@ -171,11 +157,6 @@ class PostalAddress
 		?string $locale = null
 	): ?string
 	{
-		$addressFormatRepository = new AddressFormatRepository();
-		$countryRepository = new CountryRepository();
-		$subdivisionRepository = new SubdivisionRepository();
-		$formatter = new DefaultFormatter($addressFormatRepository, $countryRepository, $subdivisionRepository, ['locale' => $locale ?? \Locale::getDefault()]);
-
 		$address = new Address();
 		$address = $address->withCountryCode($countryCode);
 
@@ -195,14 +176,7 @@ class PostalAddress
 			$address = $address->withFamilyName($attention);
 		}
 
-		try {
-			$formattedAddress = $formatter->format($address, ['html' => false]);
-			$formattedAddress = str_replace("\n", $separator, $formattedAddress);
-			return $formattedAddress;
-		}
-		catch (\ReflectionException) {}
-
-		return null;
+		return self::renderAddress($address, $separator, $locale);
 	}
 
 	/**
@@ -229,6 +203,36 @@ class PostalAddress
 	): ?string
 	{
 		return self::formatFromComponents($countryCode, $city, $postcode, $road, $state, $attention, $separator, $locale);
+	}
+
+	/**
+	 * Renders a commerceguys/addressing Address into a formatted string.
+	 * LC_CTYPE is neutralized during formatting because DefaultFormatter::cleanupOutput() uses a non-Unicode \s regex (no /u modifier), sensitive to the active C locale.
+	 * Under some locales (e.g. fr_FR on Windows, codepage 1252), a valid UTF-8 byte (e.g. the second byte of "à") gets classified as whitespace and merged with an adjacent space, corrupting the encoding.
+	 * @param Address $address
+	 * @param string|null $separator Separator between address lines
+	 * @param string|null $locale Locale for formatting (default: system locale)
+	 * @return string|null The formatted address string, or null on error
+	 */
+	private static function renderAddress(Address $address, ?string $separator, ?string $locale): ?string
+	{
+		$addressFormatRepository = new AddressFormatRepository();
+		$countryRepository = new CountryRepository();
+		$subdivisionRepository = new SubdivisionRepository();
+		$formatter = new DefaultFormatter($addressFormatRepository, $countryRepository, $subdivisionRepository, ['locale' => $locale ?? \Locale::getDefault()]);
+
+		$previousCtype = setlocale(LC_CTYPE, '0');
+		setlocale(LC_CTYPE, 'C');
+		try {
+			$formattedAddress = $formatter->format($address, ['html' => false]);
+			return str_replace("\n", $separator, $formattedAddress);
+		}
+		catch (\ReflectionException) {}
+		finally {
+			setlocale(LC_CTYPE, $previousCtype);
+		}
+
+		return null;
 	}
 
 
