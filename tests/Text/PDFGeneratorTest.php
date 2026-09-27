@@ -37,10 +37,6 @@ final class PDFGeneratorTest extends TestCase
 		$logger = new NullLogger();
 		$generator = new PDFGenerator($logger);
 		$this->assertInstanceOf(PDFGenerator::class, $generator);
-
-		// Deprecated $wkHtmlToPdtBinaryPath parameter accepted without effect
-		$generator = new PDFGenerator($logger, '/usr/local/bin/wkhtmltopdf');
-		$this->assertInstanceOf(PDFGenerator::class, $generator);
 	}
 
 	public function testSetLogger(): void
@@ -48,15 +44,6 @@ final class PDFGeneratorTest extends TestCase
 		$generator = new PDFGenerator();
 		$result = $generator->setLogger(new NullLogger());
 
-		$this->assertSame($generator, $result);
-	}
-
-	public function testSetWkHtmlToPdtBinaryPath(): void
-	{
-		$generator = new PDFGenerator();
-		$result = $generator->setWkHtmlToPdtBinaryPath('/usr/local/bin/wkhtmltopdf');
-
-		// Deprecated, no-op, but must remain fluent for backward compatibility
 		$this->assertSame($generator, $result);
 	}
 

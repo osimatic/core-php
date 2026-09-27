@@ -14,12 +14,9 @@ class PDFGenerator
 {
 	/**
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
-	 * @param string|null $wkHtmlToPdtBinaryPath Unused since the migration to Dompdf; kept for backward compatibility of the constructor signature only.
-	 * @deprecated The $wkHtmlToPdtBinaryPath parameter has no effect anymore. Dompdf is a pure PHP library and does not use an external binary.
 	 */
 	public function __construct(
 		private LoggerInterface $logger = new NullLogger(),
-		private ?string $wkHtmlToPdtBinaryPath = null,
 	) {}
 
 	/**
@@ -30,19 +27,6 @@ class PDFGenerator
 	public function setLogger(LoggerInterface $logger): self
 	{
 		$this->logger = $logger;
-
-		return $this;
-	}
-
-	/**
-	 * Sets the path to the wkhtmltopdf binary executable.
-	 * @param string $wkHtmlToPdtBinaryPath The full path to the wkhtmltopdf binary
-	 * @return self Returns this instance for method chaining
-	 * @deprecated This has no effect anymore. Dompdf is a pure PHP library and does not use an external binary.
-	 */
-	public function setWkHtmlToPdtBinaryPath(string $wkHtmlToPdtBinaryPath): self
-	{
-		$this->wkHtmlToPdtBinaryPath = $wkHtmlToPdtBinaryPath;
 
 		return $this;
 	}
