@@ -17,7 +17,6 @@
 		"psr/log": "*",
 		"psr/http-message": "*",
 		"giggsey/libphonenumber-for-php": "^9",
-		"knplabs/knp-snappy": "^1",
 		"james-heinrich/getid3": "^1",
 		"symfony/serializer": "^7 || ^8",
 		"symfony/intl": "^7 || ^8",
@@ -38,7 +37,8 @@
 		"digitickets/lalit": "^4",
 		"commerceguys/addressing": "^2",
 		"matomo/device-detector": "^6.5",
-		"async-aws/s3": "^3.4"
+		"async-aws/s3": "^3.4",
+		"dompdf/dompdf": "^3.1"
 	},
 	"config": {
 		"allow-plugins": {

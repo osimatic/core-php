@@ -101,8 +101,8 @@ class PDF
 			return null;
 		}
 
-		// Method 1: Try to find /Count in the page tree
-		if (preg_match('/\/Count\s+(\d+)/', $content, $matches)) {
+		// Method 1: Try to find /Count in the root /Pages tree object (not e.g. an unrelated /Outlines /Count)
+		if (preg_match('/\/Type\s*\/Pages\b[\s\S]*?\/Count\s+(\d+)/', $content, $matches)) {
 			return (int) $matches[1];
 		}
 
