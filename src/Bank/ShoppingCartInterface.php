@@ -2,6 +2,8 @@
 
 namespace Osimatic\Bank;
 
+use Osimatic\Invoice\InvoiceProductInterface;
+
 /**
  * Interface representing a shopping cart
  * Used during payment processing, particularly for 3D-Secure authentication

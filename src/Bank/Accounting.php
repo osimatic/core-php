@@ -2,6 +2,7 @@
 
 namespace Osimatic\Bank;
 
+use Osimatic\Invoice\BillingTax;
 use Osimatic\Location\Country;
 use Osimatic\Text\CSVGenerator;
 

@@ -2,6 +2,7 @@
 
 namespace Osimatic\Bank;
 
+use Osimatic\Invoice\BillingAddressInterface;
 use Osimatic\Network\HTTPClient;
 use Osimatic\Network\HTTPMethod;
 use Osimatic\Network\HTTPRequestExecutor;

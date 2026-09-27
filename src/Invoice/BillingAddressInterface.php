@@ -1,6 +1,6 @@
 <?php
 
-namespace Osimatic\Bank;
+namespace Osimatic\Invoice;
 
 /**
  * Interface for billing address information

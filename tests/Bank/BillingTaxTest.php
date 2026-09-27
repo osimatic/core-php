@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Bank;
 
-use Osimatic\Bank\BillingTax;
+use Osimatic\Invoice\BillingTax;
 use PHPUnit\Framework\TestCase;
 
 final class BillingTaxTest extends TestCase

@@ -1,6 +1,6 @@
 <?php
 
-namespace Osimatic\Bank;
+namespace Osimatic\Invoice;
 
 /**
  * Interface for invoice product/line item information
@@ -8,6 +8,12 @@ namespace Osimatic\Bank;
  */
 interface InvoiceProductInterface
 {
+	/**
+	 * Get the label of the product/service line
+	 * @return string|null The line item's label/description
+	 */
+	public function getLabel(): ?string;
+
 	/**
 	 * Get the unit price of the product
 	 * @return float The price per unit

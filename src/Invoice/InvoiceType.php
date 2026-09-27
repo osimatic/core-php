@@ -1,6 +1,6 @@
 <?php
 
-namespace Osimatic\Bank;
+namespace Osimatic\Invoice;
 
 /**
  * Enumeration of invoice document types.

@@ -1,6 +1,6 @@
 <?php
 
-namespace Osimatic\Bank;
+namespace Osimatic\Invoice;
 
 /**
  * Class for calculating billing tax rates

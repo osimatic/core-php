@@ -1,7 +1,8 @@
 <?php
 
-namespace Osimatic\Bank;
+namespace Osimatic\Invoice;
 
+use Osimatic\Bank\PaymentMethod;
 use Osimatic\Organization\OrganizationInterface;
 
 /**
@@ -226,5 +227,17 @@ interface InvoiceInterface
 	 * @param string|null $deliveryType The type of delivery (e.g., "standard", "express", "pickup")
 	 */
 	public function setDeliveryType(?string $deliveryType): void;
+
+	/**
+	 * Get the customer order reference (e.g. a purchase order or engagement number given by the buyer)
+	 * @return string|null The customer's own reference for this order/invoice
+	 */
+	public function getCustomerOrderReference(): ?string;
+
+	/**
+	 * Set the customer order reference (e.g. a purchase order or engagement number given by the buyer)
+	 * @param string|null $customerOrderReference The customer's own reference for this order/invoice
+	 */
+	public function setCustomerOrderReference(?string $customerOrderReference): void;
 
 }
