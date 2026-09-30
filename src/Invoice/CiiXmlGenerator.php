@@ -13,16 +13,19 @@ use Psr\Log\NullLogger;
  */
 class CiiXmlGenerator
 {
-	// "Extended" ZUGFeRD/Factur-X profile with the French CTC extension (AFNOR XP Z12-012)
-	public const string PROVIDER_UNIQUE_ID_EXTENDED_CTC_FR = 'zffxextendedctcfr';
+	// "Extended" ZUGFeRD/Factur-X profile. Note: the French CTC extension ("zffxextendedctcfr") is NOT used by default, because it produces a URN that atgp/factur-x (used by FacturXGenerator to merge this XML into a PDF) does not recognize, causing a ProfileResolutionException.
+	public const string PROVIDER_UNIQUE_ID_EXTENDED = 'zffxextended';
 
 	// UN/CEFACT Recommendation 20 generic "unit" code, used as a default since InvoiceProductInterface does not expose a unit of measure
 	private const string DEFAULT_UNIT_CODE = 'C62';
 
 	public function __construct(
-		private readonly string $providerUniqueId = self::PROVIDER_UNIQUE_ID_EXTENDED_CTC_FR,
+		private readonly string $providerUniqueId = self::PROVIDER_UNIQUE_ID_EXTENDED,
 		private readonly LoggerInterface $logger = new NullLogger(),
-	) {}
+	) {
+		// Without this, InvoiceSuiteDocumentBuilder scans every class known to the Composer classloader (thousands of them, across all dependencies) to discover format providers, which is both slow and has been observed to crash the PHP process on unrelated classes.
+		\horstoeko\invoicesuite\InvoiceSuiteSettings::setDiscoveryNamespaces(['horstoeko\\invoicesuite']);
+	}
 
 	/**
 	 * @param InvoiceInterface $invoice
@@ -37,6 +40,7 @@ class CiiXmlGenerator
 			$builder = InvoiceSuiteDocumentBuilder::createByProviderUniqueId($this->providerUniqueId);
 
 			$builder->setDocumentNo($invoice->getInvoiceNumber());
+			$builder->setDocumentType('380'); // UNTDID 1001 code for "Commercial invoice", mandatory on every profile
 			$builder->setDocumentDate($invoice->getDate());
 			$builder->setDocumentCurrency($invoice->getCurrency());
 			$builder->setDocumentSellerName($seller?->getName());
@@ -45,14 +49,17 @@ class CiiXmlGenerator
 			$builder->setDocumentBuyerId($buyer?->getRegistrationNumber());
 			$builder->setDocumentBuyerOrderReference($invoice->getCustomerOrderReference());
 
-			foreach ($invoice->getProductsList() as $product) {
-				$builder->addDocumentPosition();
+			foreach ($invoice->getProductsList() as $index => $product) {
+				$builder->addDocumentPosition((string) ($index + 1));
 				$builder->setDocumentPositionProductDetails(newProductName: $product->getLabel());
 				$builder->setDocumentPositionQuantities($product->getQuantity(), self::DEFAULT_UNIT_CODE);
 				$builder->setDocumentPositionGrossPrice($product->getUnitPrice());
 				$builder->setDocumentPositionNetPrice($product->getUnitPrice());
 				$builder->setDocumentPositionTax('S', 'VAT', newTaxPercent: $invoice->getBillingTaxRate());
 			}
+
+			// Header-level VAT breakdown (mandatory in addition to the per-line tax set above)
+			$builder->setDocumentTax('S', 'VAT', $invoice->getTotalExclTax(), $invoice->getTotalVat(), $invoice->getBillingTaxRate());
 
 			$builder->setDocumentSummation(
 				newNetAmount: $invoice->getTotalExclTax(),

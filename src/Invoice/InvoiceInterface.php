@@ -13,6 +13,18 @@ use Osimatic\Organization\OrganizationInterface;
 interface InvoiceInterface
 {
 	/**
+	 * Get the invoice document type
+	 * @return InvoiceType The document type (invoice, quotation, pro forma)
+	 */
+	public function getType(): InvoiceType;
+
+	/**
+	 * Set the invoice document type
+	 * @param InvoiceType $type The document type (invoice, quotation, pro forma)
+	 */
+	public function setType(InvoiceType $type): void;
+
+	/**
 	 * Get the seller organization
 	 * @return OrganizationInterface|null The organization selling the goods/services
 	 */
