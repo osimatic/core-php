@@ -244,11 +244,48 @@ final class ChorusProClientTest extends TestCase
 		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
 		$this->assertSame('ABCDE', $result->submissionId);
 
+		// API error status (400): the JSON error body must not be mistaken for a successful submission
+		$clientApiError = new ChorusProClient(
+			environment: ChorusProEnvironment::SANDBOX,
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(400, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 20, 'libelle' => 'Invalid field'])),
+			]),
+		);
+		$result = $clientApiError->submit($this->createInvoice($this->createChorusProRecipientBuyer()));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status);
+		$this->assertNull($result->submissionId);
+		$this->assertStringContainsString('HTTP 400', $result->error);
+		$this->assertStringContainsString('Invalid field', $result->error);
+
+		// Successful HTTP status but no invoice identifier in the response: ERROR, since the submission could not be followed up
+		$clientNoId = new ChorusProClient(
+			environment: ChorusProEnvironment::SANDBOX,
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0])),
+			]),
+		);
+		$result = $clientNoId->submit($this->createInvoice($this->createChorusProRecipientBuyer()));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status);
+		$this->assertStringContainsString('no invoice identifier', $result->error);
+
 		// Validation, applied whatever the submission mode: each invalid invoice is rejected without any HTTP call
 		$invalidInvoices = [
 			'seller registration number' => $this->createInvoice($this->createChorusProRecipientBuyer(), sellerRegistrationNumber: null),
 			'invoice number' => $this->createInvoice($this->createChorusProRecipientBuyer(), invoiceNumber: ''),
 			'product line' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: []),
+			'product quantity' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: [$this->createProduct('Abonnement mensuel', 100.0, 0.0, 20.0)]),
+			'product label' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: [$this->createProduct('', 100.0, 1.0, 20.0)]),
+			'product VAT rate' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: [$this->createProduct('Abonnement mensuel', 100.0, 1.0, -5.0)]),
 			'invoicing category' => $this->createInvoice($this->createChorusProRecipientBuyer(null)),
 			'TYPE_2 service code' => $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_2)),
 			'quotation' => $this->createInvoice($this->createChorusProRecipientBuyer(), InvoiceType::QUOTATION),
@@ -322,6 +359,20 @@ final class ChorusProClientTest extends TestCase
 			]),
 		);
 		$this->assertSame(['statut' => 'DEPOSEE'], $client->getInvoiceStatus('12345'));
+
+		// API error status -> null (the error body is not returned as a status)
+		$clientApiError = new ChorusProClient(
+			environment: ChorusProEnvironment::SANDBOX,
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(500, ['Content-Type' => 'application/json'], json_encode(['libelle' => 'Internal error'])),
+			]),
+		);
+		$this->assertNull($clientApiError->getInvoiceStatus('12345'));
 
 		// Authentication failure -> null, no second HTTP call
 		$clientAuthFailure = new ChorusProClient(

@@ -2,7 +2,6 @@
 
 namespace Osimatic\Invoice;
 
-use Atgp\FacturX\Writer;
 use Osimatic\FileSystem\FileSystem;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -11,11 +10,12 @@ use Psr\Log\NullLogger;
  * Merges a regular invoice PDF with a CII XML document to produce a Factur-X hybrid PDF/A-3 file.
  * @link https://github.com/atgp/factur-x atgp/factur-x documentation
  */
-class FacturXGenerator
+readonly class FacturXGenerator
 {
 	public function __construct(
-		private readonly CiiXmlGenerator $ciiXmlGenerator = new CiiXmlGenerator(),
-		private readonly LoggerInterface $logger = new NullLogger(),
+		private CiiXmlGenerator $ciiXmlGenerator = new CiiXmlGenerator(),
+		private LoggerInterface $logger = new NullLogger(),
+		private \Atgp\FacturX\Writer $writer = new \Atgp\FacturX\Writer(),
 	) {}
 
 	/**
@@ -36,17 +36,16 @@ class FacturXGenerator
 		}
 
 		try {
-			$facturXContent = (new Writer())->generate($pdfContent, $xml);
+			$facturXContent = $this->writer->generate($pdfContent, $xml);
+
+			$outputFilePath = FileSystem::formatPath($outputFilePath);
+			FileSystem::initializeFile($outputFilePath);
+			if (false === file_put_contents($outputFilePath, $facturXContent)) {
+				throw new \RuntimeException('Unable to write the file: '.$outputFilePath);
+			}
 		}
 		catch (\Throwable $e) {
-			$this->logger->error('Failed to generate the Factur-X document: '.$e->getMessage(), ['exception' => $e]);
-			return null;
-		}
-
-		$outputFilePath = FileSystem::formatPath($outputFilePath);
-		FileSystem::initializeFile($outputFilePath);
-		if (false === file_put_contents($outputFilePath, $facturXContent)) {
-			$this->logger->error('Failed to write the generated Factur-X file: '.$outputFilePath);
+			$this->logger->error('Failed to generate the Factur-X document: '.$e->getMessage(), ['exception' => $e, 'outputFilePath' => $outputFilePath]);
 			return null;
 		}
 

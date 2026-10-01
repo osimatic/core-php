@@ -72,5 +72,22 @@ final class CiiXmlGeneratorTest extends TestCase
 		// Invalid provider unique id: the underlying library throws, generate() must catch it and return null instead of propagating the exception
 		$invalidGenerator = new CiiXmlGenerator('this-provider-does-not-exist');
 		$this->assertNull($invalidGenerator->generate($this->createInvoice()));
+
+		// Missing seller: invalid invoice, generate() must return null
+		$invoiceWithoutSeller = $this->createMock(InvoiceInterface::class);
+		$invoiceWithoutSeller->method('getSeller')->willReturn(null);
+		$invoiceWithoutSeller->method('getBuyer')->willReturn($this->createInvoice()->getBuyer());
+		$this->assertNull((new CiiXmlGenerator())->generate($invoiceWithoutSeller));
+
+		// Missing buyer: invalid invoice, generate() must return null
+		$invoiceWithoutBuyer = $this->createMock(InvoiceInterface::class);
+		$invoiceWithoutBuyer->method('getSeller')->willReturn($this->createInvoice()->getSeller());
+		$invoiceWithoutBuyer->method('getBuyer')->willReturn(null);
+		$this->assertNull((new CiiXmlGenerator())->generate($invoiceWithoutBuyer));
+
+		// Exception thrown by a getter is caught as well
+		$throwingInvoice = $this->createMock(InvoiceInterface::class);
+		$throwingInvoice->method('getSeller')->willThrowException(new \RuntimeException('boom'));
+		$this->assertNull((new CiiXmlGenerator())->generate($throwingInvoice));
 	}
 }

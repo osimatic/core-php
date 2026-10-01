@@ -5,6 +5,7 @@ namespace Osimatic\Invoice;
 use Osimatic\Bank\PaymentMethod;
 use Osimatic\Network\HTTPMethod;
 use Osimatic\Network\HTTPRequestExecutor;
+use Osimatic\Organization\OrganizationInterface;
 use Osimatic\Text\PDFGenerator;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -87,7 +88,13 @@ class ChorusProClient
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro submission returned no response.');
 		}
 
-		return new ChorusProSubmissionResult(ChorusProSubmissionStatus::SUBMITTED, submissionId: $response['idFacture'] ?? $response['id'] ?? null);
+		// Without an identifier the submission cannot be followed up. The invoice may nevertheless have been accepted by Chorus Pro, hence the explicit warning against blindly resubmitting (duplicate).
+		if (null === ($submissionId = $response['idFacture'] ?? $response['id'] ?? null)) {
+			$this->logger->error('Chorus Pro response contains no invoice identifier: '.mb_substr(json_encode($response), 0, 500));
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro response contains no invoice identifier. The invoice may have been received: check in Chorus Pro before submitting it again.');
+		}
+
+		return new ChorusProSubmissionResult(ChorusProSubmissionStatus::SUBMITTED, submissionId: (string) $submissionId);
 	}
 
 	/**
@@ -97,14 +104,13 @@ class ChorusProClient
 	 */
 	public function getInvoiceStatus(string $submissionId): ?array
 	{
-		if (null === ($accessToken = $this->getAccessToken())) {
-			$this->logger->error('Chorus Pro status lookup aborted: could not authenticate against PISTE.');
+		try {
+			return $this->callApi(HTTPMethod::GET, 'consulterFacture', ['idFacture' => $submissionId]);
+		}
+		catch (\RuntimeException $e) {
+			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
 			return null;
 		}
-
-		return $this->requestExecutor->execute(HTTPMethod::GET, $this->environment->getApiBaseUri().'consulterFacture', [
-			'idFacture' => $submissionId,
-		], ['Authorization' => 'Bearer '.$accessToken], decodeJson: true);
 	}
 
 	// ========== Submission modes ==========
@@ -179,7 +185,7 @@ class ChorusProClient
 	// ========== Validation ==========
 
 	/**
-	 * Checks that the invoice holds everything Chorus Pro requires, whatever the submission mode: document type, supplier and recipient identification, invoice number, currency, at least one product line, and the references mandatory for the recipient's invoicing category.
+	 * Checks that the invoice holds everything Chorus Pro requires, whatever the submission mode: document type, supplier and recipient identification, invoice number, currency, at least one product line (each with a label, a positive quantity and a non-negative VAT rate), and the references mandatory for the recipient's invoicing category.
 	 * The invoice is expected to have already been checked as being addressed to a Chorus Pro recipient.
 	 * @param InvoiceInterface $invoice
 	 * @return string|null The description of the first problem found, or null if the invoice is valid
@@ -202,8 +208,19 @@ class ChorusProClient
 		if (empty($invoice->getProductsList())) {
 			return 'the invoice has no product line.';
 		}
+		foreach ($invoice->getProductsList() as $index => $product) {
+			if (empty($product->getLabel())) {
+				return 'product line #'.($index + 1).' has no label.';
+			}
+			if ($product->getQuantity() <= 0) {
+				return 'product line #'.($index + 1).' has an invalid quantity (must be greater than 0).';
+			}
+			if ($product->getVatRate() < 0) {
+				return 'product line #'.($index + 1).' has a negative VAT rate.';
+			}
+		}
 
-		/** @var ChorusProRecipientInterface&\Osimatic\Organization\OrganizationInterface $buyer */
+		/** @var ChorusProRecipientInterface&OrganizationInterface $buyer */
 		$buyer = $invoice->getBuyer();
 
 		if (empty($buyer->getRegistrationNumber())) {
@@ -231,7 +248,7 @@ class ChorusProClient
 	 */
 	private function buildSaisieApiPayload(InvoiceInterface $invoice): array
 	{
-		/** @var ChorusProRecipientInterface $buyer */
+		/** @var ChorusProRecipientInterface&OrganizationInterface $buyer */
 		$buyer = $invoice->getBuyer();
 
 		$vatBreakdown = VatBreakdown::fromInvoice($invoice);
@@ -256,14 +273,14 @@ class ChorusProClient
 			],
 			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
 			'numeroBonCommande' => $invoice->getCustomerOrderReference(),
-			'lignePoste' => array_map(fn (InvoiceProductInterface $product) => [
+			'lignePoste' => array_map(static fn (InvoiceProductInterface $product) => [
 				'lignePosteDenomination' => $product->getLabel(),
 				'lignePosteQuantite' => $product->getQuantity(),
 				'lignePosteUnite' => self::DEFAULT_UNIT_CODE,
 				'lignePosteMontantUnitaireHT' => $product->getUnitPrice(),
 				'lignePosteTauxTvaManuel' => $product->getVatRate(),
 			], $invoice->getProductsList()),
-			'ligneTva' => array_map(fn (VatBreakdown $line) => [
+			'ligneTva' => array_map(static fn (VatBreakdown $line) => [
 				'ligneTvaMontantBaseHT' => $line->baseExclTax,
 				'ligneTvaTauxTva' => $line->rate,
 				'ligneTvaMontantTva' => $line->vatAmount,
@@ -296,24 +313,51 @@ class ChorusProClient
 	/**
 	 * @param array $payload
 	 * @return array|null
+	 * @throws \RuntimeException If the API answers with an HTTP error status
 	 */
 	private function callSoumettreFacture(array $payload): ?array
 	{
+		return $this->callApi(HTTPMethod::POST, 'soumettreFacture', $payload);
+	}
+
+	/**
+	 * Calls an authenticated Chorus Pro API endpoint and returns its JSON-decoded response.
+	 * The HTTP status is checked here because the API reports business errors (rejected invoice, invalid field, etc.) as an error status with a JSON body, which would otherwise be mistaken for a valid response.
+	 * @param HTTPMethod $method
+	 * @param string $endpoint The endpoint name, relative to the API base URI (e.g. "soumettreFacture")
+	 * @param array $data The request data: query parameters for GET, JSON body for POST
+	 * @return array|null The decoded response, or null if authentication failed or the response is not a valid JSON object
+	 * @throws \RuntimeException If the API answers with an HTTP error status (4xx/5xx), the message contains the status code and the beginning of the response body
+	 */
+	private function callApi(HTTPMethod $method, string $endpoint, array $data): ?array
+	{
 		if (null === ($accessToken = $this->getAccessToken())) {
-			$this->logger->error('Chorus Pro submission aborted: could not authenticate against PISTE.');
+			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" aborted: could not authenticate against PISTE.');
 			return null;
 		}
 
-		$response = $this->requestExecutor->execute(HTTPMethod::POST, $this->environment->getApiBaseUri().'soumettreFacture', $payload, [
+		$response = $this->requestExecutor->send($method, $this->environment->getApiBaseUri().$endpoint, $data, [
 			'Authorization' => 'Bearer '.$accessToken,
-		], jsonBody: true, decodeJson: true);
+		], jsonBody: HTTPMethod::POST === $method);
 
-		if (!is_array($response)) {
-			$this->logger->error('Chorus Pro submission failed: no valid response from the API.');
+		if (null === $response) {
+			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" failed: no response from the API.');
 			return null;
 		}
 
-		return $response;
+		$body = (string) $response->getBody();
+
+		if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+			throw new \RuntimeException('Chorus Pro API call to "'.$endpoint.'" returned HTTP '.$response->getStatusCode().': '.mb_substr($body, 0, 500));
+		}
+
+		$decodedResponse = json_decode($body, true);
+		if (!is_array($decodedResponse)) {
+			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" failed: the response is not a valid JSON object.');
+			return null;
+		}
+
+		return $decodedResponse;
 	}
 
 	/**

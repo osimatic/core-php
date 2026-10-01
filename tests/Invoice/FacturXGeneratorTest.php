@@ -11,6 +11,7 @@ use Osimatic\Organization\OrganizationInterface;
 use Osimatic\Text\PDFGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 #[AllowMockObjectsWithoutExpectations]
 final class FacturXGeneratorTest extends TestCase
@@ -96,5 +97,27 @@ final class FacturXGeneratorTest extends TestCase
 		// Unreadable source PDF -> null, nothing written
 		$this->assertNull((new FacturXGenerator())->generate($invoice, $this->tempDir.'/does-not-exist.pdf', $outputPath.'2'));
 		$this->assertFileDoesNotExist($outputPath.'2');
+
+		// Writer failure -> null, error logged, nothing written
+		$writer = $this->createMock(\Atgp\FacturX\Writer::class);
+		$writer->method('generate')->willThrowException(new \RuntimeException('merge failed'));
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->once())->method('error');
+		$this->assertNull((new FacturXGenerator(logger: $logger, writer: $writer))->generate($invoice, $pdfPath, $outputPath.'3'));
+		$this->assertFileDoesNotExist($outputPath.'3');
+
+		// Output file cannot be written (parent "directory" is a regular file) -> null, error logged, no exception thrown
+		$writer = $this->createMock(\Atgp\FacturX\Writer::class);
+		$writer->method('generate')->willReturn('%PDF-fake');
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->once())->method('error');
+		set_error_handler(static fn() => true);
+		try {
+			$result = (new FacturXGenerator(logger: $logger, writer: $writer))->generate($invoice, $pdfPath, $pdfPath.'/facturx.pdf');
+		}
+		finally {
+			restore_error_handler();
+		}
+		$this->assertNull($result);
 	}
 }
