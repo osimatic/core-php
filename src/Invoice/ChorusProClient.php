@@ -44,25 +44,31 @@ class ChorusProClient
 		private readonly CiiXmlGenerator $ciiXmlGenerator = new CiiXmlGenerator(),
 		private readonly FacturXGenerator $facturXGenerator = new FacturXGenerator(),
 		private readonly PDFGenerator $pdfGenerator = new PDFGenerator(),
+		private readonly ChorusProVatType $vatType = ChorusProVatType::VAT_ON_DEBIT,
 	) {}
 
 	// ========== Submission ==========
 
 	/**
-	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reflected via ChorusProSubmissionTrackingInterface (if implemented by the invoice) and the boolean return value, so a Chorus Pro failure never blocks the normal invoicing flow.
+	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow. Persisting the result is up to the caller.
 	 * @param InvoiceInterface $invoice
 	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required only for the DEPOT_PDF_API mode
-	 * @return bool True if the invoice was successfully submitted, false if not applicable or on failure
+	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE (not a Chorus Pro recipient), DISABLED (feature flag off), SUBMITTED (with the Chorus Pro identifier) or ERROR (with the error message)
 	 */
-	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null): bool
+	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null): ChorusProSubmissionResult
 	{
 		$buyer = $invoice->getBuyer();
 		if (!$buyer instanceof ChorusProRecipientInterface || !$buyer->isChorusProRecipient()) {
-			return false; // not a Chorus Pro recipient, nothing to do
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::NOT_APPLICABLE);
 		}
 
 		if (!$this->enabled) {
-			return false; // feature flag off (no PISTE account yet)
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::DISABLED); // feature flag off (no PISTE account yet)
+		}
+
+		if (null !== ($validationError = $this->getInvoiceValidationError($invoice))) {
+			$this->logger->error('Chorus Pro submission aborted: '.$validationError);
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: $validationError);
 		}
 
 		try {
@@ -73,18 +79,15 @@ class ChorusProClient
 			};
 		}
 		catch (\Throwable $e) {
-			$this->logger->error('Chorus Pro submission failed unexpectedly: '.$e->getMessage());
-			$this->markAsError($invoice, $e->getMessage());
-			return false;
+			$this->logger->error('Chorus Pro submission failed unexpectedly: '.$e->getMessage(), ['exception' => $e]);
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: $e->getMessage());
 		}
 
 		if (null === $response) {
-			$this->markAsError($invoice, 'Chorus Pro submission returned no response.');
-			return false;
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro submission returned no response.');
 		}
 
-		$this->markAsSubmitted($invoice, $response);
-		return true;
+		return new ChorusProSubmissionResult(ChorusProSubmissionStatus::SUBMITTED, submissionId: $response['idFacture'] ?? $response['id'] ?? null);
 	}
 
 	/**
@@ -112,11 +115,7 @@ class ChorusProClient
 	 */
 	private function submitViaSaisieApi(InvoiceInterface $invoice): ?array
 	{
-		if (null === ($payload = $this->buildSaisieApiPayload($invoice))) {
-			return null;
-		}
-
-		return $this->callSoumettreFacture($payload);
+		return $this->callSoumettreFacture($this->buildSaisieApiPayload($invoice));
 	}
 
 	/**
@@ -177,35 +176,65 @@ class ChorusProClient
 		}
 	}
 
+	// ========== Validation ==========
+
+	/**
+	 * Checks that the invoice holds everything Chorus Pro requires, whatever the submission mode: document type, supplier and recipient identification, invoice number, currency, at least one product line, and the references mandatory for the recipient's invoicing category.
+	 * The invoice is expected to have already been checked as being addressed to a Chorus Pro recipient.
+	 * @param InvoiceInterface $invoice
+	 * @return string|null The description of the first problem found, or null if the invoice is valid
+	 */
+	private function getInvoiceValidationError(InvoiceInterface $invoice): ?string
+	{
+		if (InvoiceType::INVOICE !== $invoice->getType()) {
+			return 'Chorus Pro only accepts real invoices, not quotations or pro forma documents.';
+		}
+
+		if (empty($invoice->getSeller()?->getRegistrationNumber())) {
+			return 'the supplier (seller) registration number (SIRET) is missing.';
+		}
+		if (empty($invoice->getInvoiceNumber())) {
+			return 'the invoice number is missing.';
+		}
+		if (empty($invoice->getCurrency())) {
+			return 'the invoice currency is missing.';
+		}
+		if (empty($invoice->getProductsList())) {
+			return 'the invoice has no product line.';
+		}
+
+		/** @var ChorusProRecipientInterface&\Osimatic\Organization\OrganizationInterface $buyer */
+		$buyer = $invoice->getBuyer();
+
+		if (empty($buyer->getRegistrationNumber())) {
+			return 'the recipient registration number (SIRET) is missing.';
+		}
+		if (null === ($category = $buyer->getChorusProInvoiceCategory())) {
+			return 'the recipient\'s invoicing category (ChorusProInvoiceCategory) is missing.';
+		}
+		if (ChorusProInvoiceCategory::TYPE_1 === $category && empty($invoice->getCustomerOrderReference())) {
+			return 'invoicing category TYPE_1 requires a customer order reference (engagement number), none was provided.';
+		}
+		if (ChorusProInvoiceCategory::TYPE_2 === $category && empty($buyer->getChorusProServiceCode())) {
+			return 'invoicing category TYPE_2 requires a service code, none was provided.';
+		}
+
+		return null;
+	}
+
 	// ========== SAISIE_API payload ==========
 
 	/**
-	 * Builds the structured JSON payload expected by Chorus Pro in SAISIE_API mode, or null if the invoice is not eligible (wrong document type, or a mandatory reference is missing for the recipient's invoicing category).
+	 * Builds the structured JSON payload expected by Chorus Pro in SAISIE_API mode. The invoice must have been validated beforehand (see getInvoiceValidationError()).
 	 * @param InvoiceInterface $invoice
-	 * @return array|null
+	 * @return array
 	 */
-	private function buildSaisieApiPayload(InvoiceInterface $invoice): ?array
+	private function buildSaisieApiPayload(InvoiceInterface $invoice): array
 	{
-		if (InvoiceType::INVOICE !== $invoice->getType()) {
-			$this->logger->error('Chorus Pro only accepts real invoices, not quotations or pro forma documents.');
-			return null;
-		}
-
 		/** @var ChorusProRecipientInterface $buyer */
 		$buyer = $invoice->getBuyer();
 
-		if (null === ($category = $buyer->getChorusProInvoiceCategory())) {
-			$this->logger->error('Chorus Pro submission requires the recipient\'s invoicing category (ChorusProInvoiceCategory) to be set.');
-			return null;
-		}
-		if (ChorusProInvoiceCategory::TYPE_1 === $category && empty($invoice->getCustomerOrderReference())) {
-			$this->logger->error('Chorus Pro invoicing category TYPE_1 requires a customer order reference (engagement number), none was provided.');
-			return null;
-		}
-		if (ChorusProInvoiceCategory::TYPE_2 === $category && empty($buyer->getChorusProServiceCode())) {
-			$this->logger->error('Chorus Pro invoicing category TYPE_2 requires a service code, none was provided.');
-			return null;
-		}
+		$vatBreakdown = VatBreakdown::fromInvoice($invoice);
 
 		return [
 			'modeDepot' => ChorusProSubmissionMode::SAISIE_API->value,
@@ -214,7 +243,7 @@ class ChorusProClient
 				'codeServiceExecutant' => $buyer->getChorusProServiceSiret() ?? $buyer->getRegistrationNumber(),
 			],
 			'fournisseur' => [
-				'idFournisseur' => $invoice->getSeller()?->getRegistrationNumber(),
+				'idFournisseur' => $invoice->getSeller()->getRegistrationNumber(),
 			],
 			'cadreDeFacturation' => [
 				'codeCadreFacturation' => self::DEFAULT_INVOICING_FRAMEWORK_CODE,
@@ -222,7 +251,7 @@ class ChorusProClient
 			'references' => [
 				'deviseFacture' => $invoice->getCurrency(),
 				'typeFacture' => 'FACTURE',
-				'typeTva' => $invoice->getBillingTaxRate() > 0 ? 'TVA_SUR_DEBIT' : 'FRANCHISE_EN_BASE',
+				'typeTva' => $this->vatType->value,
 				'modePaiement' => $this->getPaymentModeCode($invoice->getPaymentMethod()),
 			],
 			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
@@ -232,13 +261,13 @@ class ChorusProClient
 				'lignePosteQuantite' => $product->getQuantity(),
 				'lignePosteUnite' => self::DEFAULT_UNIT_CODE,
 				'lignePosteMontantUnitaireHT' => $product->getUnitPrice(),
-				'lignePosteTauxTvaManuel' => $invoice->getBillingTaxRate(),
+				'lignePosteTauxTvaManuel' => $product->getVatRate(),
 			], $invoice->getProductsList()),
-			'ligneTva' => [[
-				'ligneTvaMontantBaseHT' => $invoice->getTotalExclTax(),
-				'ligneTvaTauxTva' => $invoice->getBillingTaxRate(),
-				'ligneTvaMontantTva' => $invoice->getTotalVat(),
-			]],
+			'ligneTva' => array_map(fn (VatBreakdown $line) => [
+				'ligneTvaMontantBaseHT' => $line->baseExclTax,
+				'ligneTvaTauxTva' => $line->rate,
+				'ligneTvaMontantTva' => $line->vatAmount,
+			], $vatBreakdown),
 			'montantTotal' => [
 				'montantHtTotal' => $invoice->getTotalExclTax(),
 				'montantTVA' => $invoice->getTotalVat(),
@@ -260,36 +289,6 @@ class ChorusProClient
 			PaymentMethod::CHEQUE => 'CHEQUE',
 			default => 'AUTRE',
 		};
-	}
-
-	// ========== Tracking ==========
-
-	/**
-	 * @param InvoiceInterface $invoice
-	 * @param array $response
-	 */
-	private function markAsSubmitted(InvoiceInterface $invoice, array $response): void
-	{
-		if (!$invoice instanceof ChorusProSubmissionTrackingInterface) {
-			return;
-		}
-		$invoice->setChorusProSubmissionStatus(ChorusProSubmissionStatus::SUBMITTED);
-		$invoice->setChorusProSubmissionId($response['idFacture'] ?? $response['id'] ?? null);
-		$invoice->setChorusProSubmissionDateTime(new \DateTime());
-		$invoice->setChorusProSubmissionError(null);
-	}
-
-	/**
-	 * @param InvoiceInterface $invoice
-	 * @param string $error
-	 */
-	private function markAsError(InvoiceInterface $invoice, string $error): void
-	{
-		if (!$invoice instanceof ChorusProSubmissionTrackingInterface) {
-			return;
-		}
-		$invoice->setChorusProSubmissionStatus(ChorusProSubmissionStatus::ERROR);
-		$invoice->setChorusProSubmissionError($error);
 	}
 
 	// ========== HTTP / OAuth2 ==========

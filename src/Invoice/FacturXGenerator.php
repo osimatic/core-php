@@ -39,7 +39,7 @@ class FacturXGenerator
 			$facturXContent = (new Writer())->generate($pdfContent, $xml);
 		}
 		catch (\Throwable $e) {
-			$this->logger->error('Failed to generate the Factur-X document: '.$e->getMessage());
+			$this->logger->error('Failed to generate the Factur-X document: '.$e->getMessage(), ['exception' => $e]);
 			return null;
 		}
 

@@ -157,18 +157,6 @@ interface InvoiceInterface
 	public function setCurrency(string $currency): void;
 
 	/**
-	 * Get the billing tax rate
-	 * @return float The tax rate as a percentage (e.g., 20.0 for 20%)
-	 */
-	public function getBillingTaxRate(): float;
-
-	/**
-	 * Set the billing tax rate
-	 * @param float $billingTaxRate The tax rate as a percentage (e.g., 20.0 for 20%)
-	 */
-	public function setBillingTaxRate(float $billingTaxRate): void;
-
-	/**
 	 * Get the validation date
 	 * @return \DateTime|null The date the invoice was validated/approved
 	 */

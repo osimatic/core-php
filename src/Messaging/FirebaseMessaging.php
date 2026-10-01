@@ -133,7 +133,7 @@ class FirebaseMessaging implements MobilePushNotificationSenderInterface
 			$client->addScope('https://www.googleapis.com/auth/firebase.messaging');
 			$httpClient = $client->authorize();
 		} catch (\Exception $e) {
-			$this->logger->error('Failed to authorize Google Client: ' . $e->getMessage());
+			$this->logger->error('Failed to authorize Google Client: ' . $e->getMessage(), ['exception' => $e]);
 			return new PushNotificationSendingResponse(false, PushNotificationSendingStatus::SETTINGS_INVALID);
 		}
 
@@ -153,7 +153,7 @@ class FirebaseMessaging implements MobilePushNotificationSenderInterface
 				'body' => $jsonBody
 			]);
 		} catch (\GuzzleHttp\Exception\GuzzleException $e) {
-			$this->logger->error('HTTP request failed: ' . $e->getMessage());
+			$this->logger->error('HTTP request failed: ' . $e->getMessage(), ['exception' => $e]);
 			return new PushNotificationSendingResponse(false, PushNotificationSendingStatus::HTTP);
 		}
 

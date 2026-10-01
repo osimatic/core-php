@@ -47,7 +47,7 @@ class XMLConverter
 			return $xml?->saveXML();
 		}
 		catch (\Exception $e) {
-			$this->logger->error($e->getMessage());
+			$this->logger->error($e->getMessage(), ['exception' => $e]);
 		}
 		return null;
 	}
@@ -67,7 +67,7 @@ class XMLConverter
 			return XML2Array::createArray($xmlContent);
 		}
 		catch (\Exception $e) {
-			$this->logger->error($e->getMessage());
+			$this->logger->error($e->getMessage(), ['exception' => $e]);
 		}
 		return null;
 	}

@@ -55,11 +55,13 @@ class CiiXmlGenerator
 				$builder->setDocumentPositionQuantities($product->getQuantity(), self::DEFAULT_UNIT_CODE);
 				$builder->setDocumentPositionGrossPrice($product->getUnitPrice());
 				$builder->setDocumentPositionNetPrice($product->getUnitPrice());
-				$builder->setDocumentPositionTax('S', 'VAT', newTaxPercent: $invoice->getBillingTaxRate());
+				$builder->setDocumentPositionTax($product->getVatCategory()->value, 'VAT', newTaxPercent: $product->getVatRate());
 			}
 
-			// Header-level VAT breakdown (mandatory in addition to the per-line tax set above)
-			$builder->setDocumentTax('S', 'VAT', $invoice->getTotalExclTax(), $invoice->getTotalVat(), $invoice->getBillingTaxRate());
+			// Header-level VAT breakdown, one entry per distinct VAT rate (mandatory in addition to the per-line tax set above)
+			foreach (VatBreakdown::fromInvoice($invoice) as $vatBreakdown) {
+				$builder->addDocumentTax($vatBreakdown->category->value, 'VAT', $vatBreakdown->baseExclTax, $vatBreakdown->vatAmount, $vatBreakdown->rate);
+			}
 
 			$builder->setDocumentSummation(
 				newNetAmount: $invoice->getTotalExclTax(),
@@ -74,7 +76,7 @@ class CiiXmlGenerator
 			return $builder->getContent();
 		}
 		catch (\Throwable $e) {
-			$this->logger->error('Failed to build the CII XML document: '.$e->getMessage());
+			$this->logger->error('Failed to build the CII XML document: '.$e->getMessage(), ['exception' => $e]);
 			return null;
 		}
 	}

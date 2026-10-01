@@ -11,10 +11,11 @@ use Osimatic\Invoice\ChorusProInvoiceCategory;
 use Osimatic\Invoice\ChorusProRecipientInterface;
 use Osimatic\Invoice\ChorusProSubmissionMode;
 use Osimatic\Invoice\ChorusProSubmissionStatus;
-use Osimatic\Invoice\ChorusProSubmissionTrackingInterface;
 use Osimatic\Invoice\InvoiceInterface;
 use Osimatic\Invoice\InvoiceProductInterface;
 use Osimatic\Invoice\InvoiceType;
+use Osimatic\Invoice\ChorusProVatType;
+use Osimatic\Invoice\VatCategory;
 use Osimatic\Bank\PaymentMethod;
 use Osimatic\Network\HTTPRequestExecutor;
 use Osimatic\Organization\OrganizationInterface;
@@ -66,33 +67,41 @@ final class ChorusProClientTest extends TestCase
 		return $buyer;
 	}
 
+	private function createProduct(string $label, float $unitPrice, float $quantity, float $vatRate, VatCategory $vatCategory = VatCategory::STANDARD): InvoiceProductInterface
+	{
+		$product = $this->createMock(InvoiceProductInterface::class);
+		$product->method('getLabel')->willReturn($label);
+		$product->method('getUnitPrice')->willReturn($unitPrice);
+		$product->method('getQuantity')->willReturn($quantity);
+		$product->method('getVatRate')->willReturn($vatRate);
+		$product->method('getVatCategory')->willReturn($vatCategory);
+
+		return $product;
+	}
+
 	/**
-	 * @return InvoiceInterface&ChorusProSubmissionTrackingInterface
+	 * @return InvoiceInterface
 	 */
-	private function createInvoice(OrganizationInterface $buyer, InvoiceType $type = InvoiceType::INVOICE, ?string $customerOrderReference = 'PO-42')
+	private function createInvoice(OrganizationInterface $buyer, InvoiceType $type = InvoiceType::INVOICE, ?string $customerOrderReference = 'PO-42', ?string $sellerRegistrationNumber = '12345678900012', string $invoiceNumber = 'INV-2026-001', ?array $products = null)
 	{
 		$seller = $this->createMock(OrganizationInterface::class);
 		$seller->method('getName')->willReturn('MyTime SAS');
-		$seller->method('getRegistrationNumber')->willReturn('12345678900012');
+		$seller->method('getRegistrationNumber')->willReturn($sellerRegistrationNumber);
 
-		$product = $this->createMock(InvoiceProductInterface::class);
-		$product->method('getLabel')->willReturn('Abonnement mensuel');
-		$product->method('getUnitPrice')->willReturn(100.0);
-		$product->method('getQuantity')->willReturn(1.0);
+		$products ??= [$this->createProduct('Abonnement mensuel', 100.0, 1.0, 20.0)];
 
-		$invoice = $this->createMockForIntersectionOfInterfaces([InvoiceInterface::class, ChorusProSubmissionTrackingInterface::class]);
+		$invoice = $this->createMock(InvoiceInterface::class);
 		$invoice->method('getType')->willReturn($type);
 		$invoice->method('getBuyer')->willReturn($buyer);
 		$invoice->method('getSeller')->willReturn($seller);
-		$invoice->method('getInvoiceNumber')->willReturn('INV-2026-001');
+		$invoice->method('getInvoiceNumber')->willReturn($invoiceNumber);
 		$invoice->method('getDate')->willReturn(new \DateTime('2026-09-01'));
 		$invoice->method('getCurrency')->willReturn('EUR');
 		$invoice->method('getCustomerOrderReference')->willReturn($customerOrderReference);
-		$invoice->method('getProductsList')->willReturn([$product]);
+		$invoice->method('getProductsList')->willReturn($products);
 		$invoice->method('getTotalExclTax')->willReturn(100.0);
 		$invoice->method('getTotalVat')->willReturn(20.0);
 		$invoice->method('getTotalInclTax')->willReturn(120.0);
-		$invoice->method('getBillingTaxRate')->willReturn(20.0);
 		$invoice->method('getPaymentMethod')->willReturn(PaymentMethod::TRANSFER);
 
 		return $invoice;
@@ -113,7 +122,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
-		$this->assertFalse($client->submit($invoiceNotEligible));
+		$this->assertSame(ChorusProSubmissionStatus::NOT_APPLICABLE, $client->submit($invoiceNotEligible)->status);
 
 		// Feature flag disabled: no HTTP call at all, returns false
 		$eligibleBuyer = $this->createChorusProRecipientBuyer();
@@ -126,14 +135,10 @@ final class ChorusProClientTest extends TestCase
 			enabled: false,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
-		$this->assertFalse($clientDisabled->submit($invoiceDisabled));
+		$this->assertSame(ChorusProSubmissionStatus::DISABLED, $clientDisabled->submit($invoiceDisabled)->status);
 
 		// SAISIE_API happy path: authenticates then submits, marks the invoice as SUBMITTED with the returned id
 		$invoiceSaisieApi = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$invoiceSaisieApi->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::SUBMITTED);
-		$invoiceSaisieApi->expects($this->once())->method('setChorusProSubmissionId')->with('12345');
-		$invoiceSaisieApi->expects($this->once())->method('setChorusProSubmissionDateTime');
-		$invoiceSaisieApi->expects($this->once())->method('setChorusProSubmissionError')->with(null);
 		$clientSaisieApi = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -145,11 +150,14 @@ final class ChorusProClientTest extends TestCase
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '12345'])),
 			]),
 		);
-		$this->assertTrue($clientSaisieApi->submit($invoiceSaisieApi));
+		$result = $clientSaisieApi->submit($invoiceSaisieApi);
+		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
+		$this->assertTrue($result->isSubmitted());
+		$this->assertSame('12345', $result->submissionId);
+		$this->assertNull($result->error);
 
 		// SAISIE_API: not a real invoice (quotation/pro forma) -> payload cannot be built, no HTTP call, marked as ERROR
 		$invoiceWrongType = $this->createInvoice($this->createChorusProRecipientBuyer(), InvoiceType::QUOTATION);
-		$invoiceWrongType->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::ERROR);
 		$clientWrongType = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -158,11 +166,14 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
-		$this->assertFalse($clientWrongType->submit($invoiceWrongType));
+		$result = $clientWrongType->submit($invoiceWrongType);
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status);
+		$this->assertFalse($result->isSubmitted());
+		$this->assertNull($result->submissionId);
+		$this->assertNotEmpty($result->error);
 
 		// SAISIE_API: TYPE_1 category requires a customer order reference; missing here -> ERROR, no HTTP call
 		$invoiceMissingRef = $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_1), customerOrderReference: null);
-		$invoiceMissingRef->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::ERROR);
 		$clientMissingRef = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -171,11 +182,10 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
-		$this->assertFalse($clientMissingRef->submit($invoiceMissingRef));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientMissingRef->submit($invoiceMissingRef)->status);
 
 		// Authentication failure (no access_token in the OAuth response): ERROR, no second HTTP call
 		$invoiceAuthFailure = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$invoiceAuthFailure->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::ERROR);
 		$clientAuthFailure = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -186,11 +196,10 @@ final class ChorusProClientTest extends TestCase
 				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
 			]),
 		);
-		$this->assertFalse($clientAuthFailure->submit($invoiceAuthFailure));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientAuthFailure->submit($invoiceAuthFailure)->status);
 
 		// EDI_XML_STRUCT happy path: builds the CII XML itself (real CiiXmlGenerator), submits it as a flux
 		$invoiceEdiXml = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$invoiceEdiXml->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::SUBMITTED);
 		$clientEdiXml = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::EDI_XML_STRUCT,
@@ -202,11 +211,12 @@ final class ChorusProClientTest extends TestCase
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '67890'])),
 			]),
 		);
-		$this->assertTrue($clientEdiXml->submit($invoiceEdiXml));
+		$result = $clientEdiXml->submit($invoiceEdiXml);
+		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
+		$this->assertSame('67890', $result->submissionId);
 
 		// DEPOT_PDF_API: missing invoice HTML -> cannot render the PDF, ERROR, no HTTP call
 		$invoiceMissingHtml = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$invoiceMissingHtml->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::ERROR);
 		$clientMissingHtml = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
@@ -215,11 +225,10 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
-		$this->assertFalse($clientMissingHtml->submit($invoiceMissingHtml, null));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientMissingHtml->submit($invoiceMissingHtml, null)->status);
 
 		// DEPOT_PDF_API happy path: renders the PDF (real PDFGenerator), merges it into a Factur-X file (real FacturXGenerator/CiiXmlGenerator), submits it as a file
 		$invoiceDepotPdf = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$invoiceDepotPdf->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::SUBMITTED);
 		$clientDepotPdf = new ChorusProClient(
 			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
@@ -231,7 +240,69 @@ final class ChorusProClientTest extends TestCase
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => 'ABCDE'])),
 			]),
 		);
-		$this->assertTrue($clientDepotPdf->submit($invoiceDepotPdf, '<html><body><h1>Invoice</h1></body></html>'));
+		$result = $clientDepotPdf->submit($invoiceDepotPdf, '<html><body><h1>Invoice</h1></body></html>');
+		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
+		$this->assertSame('ABCDE', $result->submissionId);
+
+		// Validation, applied whatever the submission mode: each invalid invoice is rejected without any HTTP call
+		$invalidInvoices = [
+			'seller registration number' => $this->createInvoice($this->createChorusProRecipientBuyer(), sellerRegistrationNumber: null),
+			'invoice number' => $this->createInvoice($this->createChorusProRecipientBuyer(), invoiceNumber: ''),
+			'product line' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: []),
+			'invoicing category' => $this->createInvoice($this->createChorusProRecipientBuyer(null)),
+			'TYPE_2 service code' => $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_2)),
+			'quotation' => $this->createInvoice($this->createChorusProRecipientBuyer(), InvoiceType::QUOTATION),
+		];
+		foreach (ChorusProSubmissionMode::cases() as $mode) {
+			foreach ($invalidInvoices as $case => $invalidInvoice) {
+				$clientInvalid = new ChorusProClient(
+					environment: ChorusProEnvironment::SANDBOX,
+					submissionMode: $mode,
+					clientId: 'id',
+					clientSecret: 'secret',
+					enabled: true,
+					requestExecutor: $this->createRequestExecutor([]),
+				);
+				$result = $clientInvalid->submit($invalidInvoice, '<html></html>');
+				$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status, $mode->value.' / '.$case);
+				$this->assertNotEmpty($result->error, $mode->value.' / '.$case);
+			}
+		}
+
+		// SAISIE_API payload: one "ligneTva" per VAT rate, VAT rate taken from each product line, and "typeTva" taken from the configured VAT type (not deduced from the rates)
+		foreach ([ChorusProVatType::VAT_ON_DEBIT, ChorusProVatType::VAT_FRANCHISE] as $vatType) {
+			$httpClient = $this->createMock(ClientInterface::class);
+			$httpClient->method('sendRequest')->willReturnCallback(function ($request) use (&$requestBodies) {
+				$requestBodies[] = (string) $request->getBody();
+				return str_contains((string) $request->getUri(), 'soumettreFacture')
+					? new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '1']))
+					: $this->createOauthTokenResponse();
+			});
+			$requestBodies = [];
+			$clientMultiRate = new ChorusProClient(
+				environment: ChorusProEnvironment::SANDBOX,
+				submissionMode: ChorusProSubmissionMode::SAISIE_API,
+				clientId: 'id',
+				clientSecret: 'secret',
+				enabled: true,
+				requestExecutor: new HTTPRequestExecutor($httpClient),
+				vatType: $vatType,
+			);
+			$invoiceMultiRate = $this->createInvoice($this->createChorusProRecipientBuyer(), products: [
+				$this->createProduct('Standard', 100.0, 1.0, 20.0),
+				$this->createProduct('Reduced', 100.0, 2.0, 10.0),
+				$this->createProduct('Exempt', 50.0, 1.0, 0.0, VatCategory::EXEMPT),
+			]);
+			$this->assertTrue($clientMultiRate->submit($invoiceMultiRate)->isSubmitted());
+
+			$payload = json_decode(end($requestBodies), true);
+			$this->assertSame($vatType->value,$payload['references']['typeTva']);
+			// assertEquals: whole floats are decoded from JSON as integers
+			$this->assertEquals([20.0, 10.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaTauxTva'));
+			$this->assertEquals([100.0, 200.0, 50.0], array_column($payload['ligneTva'], 'ligneTvaMontantBaseHT'));
+			$this->assertEquals([20.0, 20.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaMontantTva'));
+			$this->assertEquals([20.0, 10.0, 0.0], array_column($payload['lignePoste'], 'lignePosteTauxTvaManuel'));
+		}
 	}
 
 	/* ===================== getInvoiceStatus() ===================== */

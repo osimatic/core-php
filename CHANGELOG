@@ -53,3 +53,6 @@ Version du 01/10/2025 :
 Version du 26/01/2026 :
 - suppression des méthodes setLogger dans les différents services
 - DatePeriod::getListOfPeriod() -> DatePeriod::getListOfPeriodFormatted()
+
+Version du 01/10/2026 :
+- InvoiceInterface->getBillingTaxRate() -> InvoiceProductInterface->getVatRate()

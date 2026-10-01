@@ -66,7 +66,7 @@ class PDFGenerator
 			}
 		}
 		catch (\Exception $e) {
-			$this->logger->error('Exception during PDF file generation: '.$e->getMessage());
+			$this->logger->error('Exception during PDF file generation: '.$e->getMessage(), ['exception' => $e]);
 			return false;
 		}
 

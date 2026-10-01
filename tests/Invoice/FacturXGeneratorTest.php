@@ -48,6 +48,8 @@ final class FacturXGeneratorTest extends TestCase
 		$product->method('getLabel')->willReturn('Abonnement mensuel');
 		$product->method('getUnitPrice')->willReturn(100.0);
 		$product->method('getQuantity')->willReturn(1.0);
+		$product->method('getVatRate')->willReturn(20.0);
+		$product->method('getVatCategory')->willReturn(\Osimatic\Invoice\VatCategory::STANDARD);
 
 		$invoice = $this->createMock(InvoiceInterface::class);
 		$invoice->method('getSeller')->willReturn($seller);
@@ -60,7 +62,6 @@ final class FacturXGeneratorTest extends TestCase
 		$invoice->method('getTotalExclTax')->willReturn(100.0);
 		$invoice->method('getTotalVat')->willReturn(20.0);
 		$invoice->method('getTotalInclTax')->willReturn(120.0);
-		$invoice->method('getBillingTaxRate')->willReturn(20.0);
 
 		return $invoice;
 	}
@@ -88,7 +89,8 @@ final class FacturXGeneratorTest extends TestCase
 
 		$result = (new FacturXGenerator())->generate($invoice, $pdfPath, $outputPath);
 
-		$this->assertSame($outputPath, $result);
+		// The returned path is normalized by FileSystem::formatPath() (directory separators are platform-specific)
+		$this->assertSame(\Osimatic\FileSystem\FileSystem::formatPath($outputPath), $result);
 		$this->assertFileExists($outputPath);
 
 		// Unreadable source PDF -> null, nothing written

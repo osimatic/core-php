@@ -7,6 +7,7 @@ namespace Tests\Invoice;
 use Osimatic\Invoice\CiiXmlGenerator;
 use Osimatic\Invoice\InvoiceInterface;
 use Osimatic\Invoice\InvoiceProductInterface;
+use Osimatic\Invoice\VatCategory;
 use Osimatic\Organization\OrganizationInterface;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -31,6 +32,8 @@ final class CiiXmlGeneratorTest extends TestCase
 		$product->method('getLabel')->willReturn('Abonnement mensuel');
 		$product->method('getUnitPrice')->willReturn(100.0);
 		$product->method('getQuantity')->willReturn(1.0);
+		$product->method('getVatRate')->willReturn(20.0);
+		$product->method('getVatCategory')->willReturn(VatCategory::STANDARD);
 
 		$invoice = $this->createMock(InvoiceInterface::class);
 		$invoice->method('getSeller')->willReturn($seller);
@@ -43,7 +46,6 @@ final class CiiXmlGeneratorTest extends TestCase
 		$invoice->method('getTotalExclTax')->willReturn(100.0);
 		$invoice->method('getTotalVat')->willReturn(20.0);
 		$invoice->method('getTotalInclTax')->willReturn(120.0);
-		$invoice->method('getBillingTaxRate')->willReturn(20.0);
 
 		return $invoice;
 	}
