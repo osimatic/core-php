@@ -13,7 +13,7 @@ use Psr\Log\NullLogger;
 /**
  * Client for the Chorus Pro API (French public administration e-invoicing platform): authenticates against PISTE and submits invoices via the "soumettreFacture" endpoint, in any of its 3 submission modes.
  * Two distinct sets of credentials are required: the PISTE OAuth2 client ID/secret (identifies the application) and a Chorus Pro account login/password (identifies the Chorus Pro user), sent on every call as the base64-encoded "cpro-account" header. The Chorus Pro account is created separately on the Chorus Pro portal, not on PISTE.
- * Endpoint paths and the SAISIE_API payload fields are based on the Chorus Pro API documentation and third-party integration reports; verify them against the actual PISTE API swagger before going to production.
+ * Endpoint paths and SAISIE_API payload field names are confirmed against the official PISTE API catalog Swagger schema ("API de Test pour Factures"), except the top-level "idUtilisateurCourant" field (flagged with a TODO in buildSaisieApiPayload()), whose source (a Chorus Pro internal user id) is not yet identified.
  * @link https://piste.gouv.fr PISTE developer portal
  * @link https://chorus-pro.gouv.fr/qualif Chorus Pro qualification (sandbox) account creation
  * @link https://communaute.chorus-pro.gouv.fr/submit-invoice/?lang=en Chorus Pro "Submit invoice" documentation
@@ -41,6 +41,9 @@ class ChorusProClient
 
 	private ?string $accessToken = null;
 	private int $accessTokenExpiresAt = 0;
+
+	// Caches the Chorus Pro internal structure id ("idStructureCPP") resolved for a given SIRET by resolveStructureId(), keyed by SIRET
+	private array $structureIdCache = [];
 
 	// ========== Constructor ==========
 
@@ -269,12 +272,13 @@ class ChorusProClient
 
 		return [
 			'modeDepot' => ChorusProSubmissionMode::SAISIE_API->value,
+			'dateFacture' => $invoice->getDate()->format('Y-m-d\TH:i:s.v\Z'),
 			'destinataire' => [
 				'codeDestinataire' => $buyer->getRegistrationNumber(),
 				'codeServiceExecutant' => $buyer->getChorusProServiceSiret() ?? $buyer->getRegistrationNumber(),
 			],
 			'fournisseur' => [
-				'idFournisseur' => $invoice->getSeller()->getRegistrationNumber(),
+				'idFournisseur' => $this->resolveStructureId($invoice->getSeller()->getRegistrationNumber()),
 			],
 			'cadreDeFacturation' => [
 				'codeCadreFacturation' => self::DEFAULT_INVOICING_FRAMEWORK_CODE,
@@ -284,27 +288,52 @@ class ChorusProClient
 				'typeFacture' => 'FACTURE',
 				'typeTva' => $this->vatType->value,
 				'modePaiement' => $this->getPaymentModeCode($invoice->getPaymentMethod()),
+				'numeroBonCommande' => $invoice->getCustomerOrderReference(),
 			],
 			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
-			'numeroBonCommande' => $invoice->getCustomerOrderReference(),
-			'lignePoste' => array_map(static fn (InvoiceProductInterface $product) => [
+			// "idUtilisateurCourant" (top-level, documented as required) is not set: its source (a Chorus Pro internal user id, distinct from the cpro-account login) is not yet identified.
+			'lignePoste' => array_map(static fn (InvoiceProductInterface $product, int $index) => [
+				'lignePosteNumero' => $index + 1,
 				'lignePosteDenomination' => $product->getLabel(),
 				'lignePosteQuantite' => $product->getQuantity(),
 				'lignePosteUnite' => self::DEFAULT_UNIT_CODE,
 				'lignePosteMontantUnitaireHT' => $product->getUnitPrice(),
 				'lignePosteTauxTvaManuel' => $product->getVatRate(),
-			], $invoice->getProductsList()),
+			], $invoice->getProductsList(), array_keys($invoice->getProductsList())),
 			'ligneTva' => array_map(static fn (VatBreakdown $line) => [
-				'ligneTvaMontantBaseHT' => $line->baseExclTax,
-				'ligneTvaTauxTva' => $line->rate,
-				'ligneTvaMontantTva' => $line->vatAmount,
+				'ligneTvaMontantBaseHtParTaux' => $line->baseExclTax,
+				'ligneTvaTauxManuel' => $line->rate,
+				'ligneTvaMontantTvaParTaux' => $line->vatAmount,
 			], $vatBreakdown),
 			'montantTotal' => [
 				'montantHtTotal' => $invoice->getTotalExclTax(),
 				'montantTVA' => $invoice->getTotalVat(),
 				'montantTtcTotal' => $invoice->getTotalInclTax(),
+				'montantAPayer' => $invoice->getTotalInclTax(),
 			],
 		];
+	}
+
+	/**
+	 * Resolves the Chorus Pro internal structure id ("idStructureCPP"), via the "rechercherStructure" method (endpoint "/v1/rechercher"), for the SIRET of the structure submitting the invoice ("fournisseur.idFournisseur" in the SAISIE_API payload, which Chorus Pro expects as this internal id rather than the SIRET itself).
+	 * The result is cached for the lifetime of this instance, since the submitting structure's SIRET is always the same across invoices.
+	 * @param string $siret
+	 * @return int|null
+	 */
+	private function resolveStructureId(string $siret): ?int
+	{
+		if (\array_key_exists($siret, $this->structureIdCache)) {
+			return $this->structureIdCache[$siret];
+		}
+
+		$response = $this->callApi(HTTPMethod::POST, 'rechercher', [
+			'structure' => [
+				'identifiantStructure' => $siret,
+				'typeIdentifiantStructure' => 'SIRET',
+			],
+		]);
+
+		return $this->structureIdCache[$siret] = $response['listeStructures'][0]['idStructureCPP'] ?? null;
 	}
 
 	/**

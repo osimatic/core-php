@@ -149,6 +149,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '12345'])),
 			]),
 		);
@@ -347,9 +348,9 @@ final class ChorusProClientTest extends TestCase
 			$payload = json_decode(end($requestBodies), true);
 			$this->assertSame($vatType->value,$payload['references']['typeTva']);
 			// assertEquals: whole floats are decoded from JSON as integers
-			$this->assertEquals([20.0, 10.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaTauxTva'));
-			$this->assertEquals([100.0, 200.0, 50.0], array_column($payload['ligneTva'], 'ligneTvaMontantBaseHT'));
-			$this->assertEquals([20.0, 20.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaMontantTva'));
+			$this->assertEquals([20.0, 10.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaTauxManuel'));
+			$this->assertEquals([100.0, 200.0, 50.0], array_column($payload['ligneTva'], 'ligneTvaMontantBaseHtParTaux'));
+			$this->assertEquals([20.0, 20.0, 0.0], array_column($payload['ligneTva'], 'ligneTvaMontantTvaParTaux'));
 			$this->assertEquals([20.0, 10.0, 0.0], array_column($payload['lignePoste'], 'lignePosteTauxTvaManuel'));
 		}
 	}
