@@ -20,6 +20,15 @@ class ChorusProClient
 {
 	// ========== Constants ==========
 
+	// PISTE OAuth2 token endpoints. Historical *.aife.economie.gouv.fr URLs were decommissioned on 2023-09-30, replaced by piste.gouv.fr.
+	// @link https://piste.gouv.fr/decommissionnement-des-url-piste-historiques Historical PISTE URLs decommissioning notice
+	public const string SANDBOX_OAUTH_URI = 'https://sandbox-oauth.piste.gouv.fr/api/oauth/token';
+	public const string PRODUCTION_OAUTH_URI = 'https://oauth.piste.gouv.fr/api/oauth/token';
+
+	// Chorus Pro API base URLs. This exact path was only confirmed via third-party documentation, not an official *.gouv.fr source; re-verify it on the PISTE API catalog once registered, before going to production.
+	public const string SANDBOX_API_BASE_URI = 'https://sandbox-api.piste.gouv.fr/cpro/factures/v1/';
+	public const string PRODUCTION_API_BASE_URI = 'https://api.piste.gouv.fr/cpro/factures/v1/';
+
 	// Standard supplier invoice framework, as opposed to e.g. a subcontractor invoice
 	private const string DEFAULT_INVOICING_FRAMEWORK_CODE = 'A1_FACTURE_FOURNISSEUR';
 
@@ -34,7 +43,6 @@ class ChorusProClient
 	// ========== Constructor ==========
 
 	public function __construct(
-		private readonly ChorusProEnvironment $environment,
 		private readonly ChorusProSubmissionMode $submissionMode,
 		private readonly string $clientId,
 		private readonly string $clientSecret,
@@ -46,6 +54,7 @@ class ChorusProClient
 		private readonly FacturXGenerator $facturXGenerator = new FacturXGenerator(),
 		private readonly PDFGenerator $pdfGenerator = new PDFGenerator(),
 		private readonly ChorusProVatType $vatType = ChorusProVatType::VAT_ON_DEBIT,
+		private readonly bool $sandbox = true, // true to target the PISTE sandbox (default), false for production
 	) {}
 
 	// ========== Submission ==========
@@ -336,7 +345,7 @@ class ChorusProClient
 			return null;
 		}
 
-		$response = $this->requestExecutor->send($method, $this->environment->getApiBaseUri().$endpoint, $data, [
+		$response = $this->requestExecutor->send($method, ($this->sandbox ? self::SANDBOX_API_BASE_URI : self::PRODUCTION_API_BASE_URI).$endpoint, $data, [
 			'Authorization' => 'Bearer '.$accessToken,
 		], jsonBody: HTTPMethod::POST === $method);
 
@@ -371,7 +380,7 @@ class ChorusProClient
 			return $this->accessToken;
 		}
 
-		$response = $this->requestExecutor->execute(HTTPMethod::POST, $this->environment->getOauthUri(), [
+		$response = $this->requestExecutor->execute(HTTPMethod::POST, $this->sandbox ? self::SANDBOX_OAUTH_URI : self::PRODUCTION_OAUTH_URI, [
 			'grant_type' => 'client_credentials',
 			'client_id' => $this->clientId,
 			'client_secret' => $this->clientSecret,

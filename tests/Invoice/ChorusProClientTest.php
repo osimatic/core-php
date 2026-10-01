@@ -6,7 +6,6 @@ namespace Tests\Invoice;
 
 use GuzzleHttp\Psr7\Response;
 use Osimatic\Invoice\ChorusProClient;
-use Osimatic\Invoice\ChorusProEnvironment;
 use Osimatic\Invoice\ChorusProInvoiceCategory;
 use Osimatic\Invoice\ChorusProRecipientInterface;
 use Osimatic\Invoice\ChorusProSubmissionMode;
@@ -115,7 +114,6 @@ final class ChorusProClientTest extends TestCase
 		$plainBuyer = $this->createMock(OrganizationInterface::class);
 		$invoiceNotEligible = $this->createInvoice($plainBuyer);
 		$client = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -128,7 +126,6 @@ final class ChorusProClientTest extends TestCase
 		$eligibleBuyer = $this->createChorusProRecipientBuyer();
 		$invoiceDisabled = $this->createInvoice($eligibleBuyer);
 		$clientDisabled = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -140,7 +137,6 @@ final class ChorusProClientTest extends TestCase
 		// SAISIE_API happy path: authenticates then submits, marks the invoice as SUBMITTED with the returned id
 		$invoiceSaisieApi = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientSaisieApi = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -159,7 +155,6 @@ final class ChorusProClientTest extends TestCase
 		// SAISIE_API: not a real invoice (quotation/pro forma) -> payload cannot be built, no HTTP call, marked as ERROR
 		$invoiceWrongType = $this->createInvoice($this->createChorusProRecipientBuyer(), InvoiceType::QUOTATION);
 		$clientWrongType = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -175,7 +170,6 @@ final class ChorusProClientTest extends TestCase
 		// SAISIE_API: TYPE_1 category requires a customer order reference; missing here -> ERROR, no HTTP call
 		$invoiceMissingRef = $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_1), customerOrderReference: null);
 		$clientMissingRef = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -187,7 +181,6 @@ final class ChorusProClientTest extends TestCase
 		// Authentication failure (no access_token in the OAuth response): ERROR, no second HTTP call
 		$invoiceAuthFailure = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientAuthFailure = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -201,7 +194,6 @@ final class ChorusProClientTest extends TestCase
 		// EDI_XML_STRUCT happy path: builds the CII XML itself (real CiiXmlGenerator), submits it as a flux
 		$invoiceEdiXml = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientEdiXml = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::EDI_XML_STRUCT,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -218,7 +210,6 @@ final class ChorusProClientTest extends TestCase
 		// DEPOT_PDF_API: missing invoice HTML -> cannot render the PDF, ERROR, no HTTP call
 		$invoiceMissingHtml = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientMissingHtml = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -230,7 +221,6 @@ final class ChorusProClientTest extends TestCase
 		// DEPOT_PDF_API happy path: renders the PDF (real PDFGenerator), merges it into a Factur-X file (real FacturXGenerator/CiiXmlGenerator), submits it as a file
 		$invoiceDepotPdf = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientDepotPdf = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -246,7 +236,6 @@ final class ChorusProClientTest extends TestCase
 
 		// API error status (400): the JSON error body must not be mistaken for a successful submission
 		$clientApiError = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -264,7 +253,6 @@ final class ChorusProClientTest extends TestCase
 
 		// Successful HTTP status but no invoice identifier in the response: ERROR, since the submission could not be followed up
 		$clientNoId = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -293,8 +281,7 @@ final class ChorusProClientTest extends TestCase
 		foreach (ChorusProSubmissionMode::cases() as $mode) {
 			foreach ($invalidInvoices as $case => $invalidInvoice) {
 				$clientInvalid = new ChorusProClient(
-					environment: ChorusProEnvironment::SANDBOX,
-					submissionMode: $mode,
+							submissionMode: $mode,
 					clientId: 'id',
 					clientSecret: 'secret',
 					enabled: true,
@@ -317,8 +304,7 @@ final class ChorusProClientTest extends TestCase
 			});
 			$requestBodies = [];
 			$clientMultiRate = new ChorusProClient(
-				environment: ChorusProEnvironment::SANDBOX,
-				submissionMode: ChorusProSubmissionMode::SAISIE_API,
+					submissionMode: ChorusProSubmissionMode::SAISIE_API,
 				clientId: 'id',
 				clientSecret: 'secret',
 				enabled: true,
@@ -348,7 +334,6 @@ final class ChorusProClientTest extends TestCase
 	{
 		// Happy path
 		$client = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -362,7 +347,6 @@ final class ChorusProClientTest extends TestCase
 
 		// API error status -> null (the error body is not returned as a status)
 		$clientApiError = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
@@ -376,7 +360,6 @@ final class ChorusProClientTest extends TestCase
 
 		// Authentication failure -> null, no second HTTP call
 		$clientAuthFailure = new ChorusProClient(
-			environment: ChorusProEnvironment::SANDBOX,
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
