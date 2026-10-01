@@ -189,7 +189,7 @@ final class ChorusProClientTest extends TestCase
 		);
 		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientMissingRef->submit($invoiceMissingRef)->status);
 
-		// Authentication failure (no access_token in the OAuth response): ERROR, no second HTTP call
+		// Authentication failure (no access_token in the OAuth response): ERROR. Authentication is retried independently for the structure resolution call and the actual submission call, so it is attempted twice (each failing the same way) since a failed attempt is not cached.
 		$invoiceAuthFailure = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientAuthFailure = new ChorusProClient(
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -199,6 +199,7 @@ final class ChorusProClientTest extends TestCase
 			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
+				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
 				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
 			]),
 		);
@@ -263,6 +264,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
 				new Response(400, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 20, 'libelle' => 'Invalid field'])),
 			]),
 		);
@@ -282,6 +284,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0])),
 			]),
 		);
