@@ -117,6 +117,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
@@ -129,6 +131,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: false,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
@@ -140,6 +144,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -158,6 +164,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
@@ -173,6 +181,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
@@ -184,6 +194,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
@@ -197,6 +209,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::EDI_XML_STRUCT,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -213,6 +227,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([]),
 		);
@@ -224,6 +240,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -239,6 +257,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -256,6 +276,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -284,6 +306,8 @@ final class ChorusProClientTest extends TestCase
 							submissionMode: $mode,
 					clientId: 'id',
 					clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 					enabled: true,
 					requestExecutor: $this->createRequestExecutor([]),
 				);
@@ -298,7 +322,7 @@ final class ChorusProClientTest extends TestCase
 			$httpClient = $this->createMock(ClientInterface::class);
 			$httpClient->method('sendRequest')->willReturnCallback(function ($request) use (&$requestBodies) {
 				$requestBodies[] = (string) $request->getBody();
-				return str_contains((string) $request->getUri(), 'soumettreFacture')
+				return str_contains((string) $request->getUri(), 'soumettre')
 					? new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '1']))
 					: $this->createOauthTokenResponse();
 			});
@@ -307,6 +331,8 @@ final class ChorusProClientTest extends TestCase
 					submissionMode: ChorusProSubmissionMode::SAISIE_API,
 				clientId: 'id',
 				clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 				enabled: true,
 				requestExecutor: new HTTPRequestExecutor($httpClient),
 				vatType: $vatType,
@@ -337,6 +363,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -350,6 +378,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
@@ -363,6 +393,8 @@ final class ChorusProClientTest extends TestCase
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
 			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),

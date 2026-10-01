@@ -12,8 +12,10 @@ use Psr\Log\NullLogger;
 
 /**
  * Client for the Chorus Pro API (French public administration e-invoicing platform): authenticates against PISTE and submits invoices via the "soumettreFacture" endpoint, in any of its 3 submission modes.
+ * Two distinct sets of credentials are required: the PISTE OAuth2 client ID/secret (identifies the application) and a Chorus Pro account login/password (identifies the Chorus Pro user), sent on every call as the base64-encoded "cpro-account" header. The Chorus Pro account is created separately on the Chorus Pro portal, not on PISTE.
  * Endpoint paths and the SAISIE_API payload fields are based on the Chorus Pro API documentation and third-party integration reports; verify them against the actual PISTE API swagger before going to production.
  * @link https://piste.gouv.fr PISTE developer portal
+ * @link https://chorus-pro.gouv.fr/qualif Chorus Pro qualification (sandbox) account creation
  * @link https://communaute.chorus-pro.gouv.fr/submit-invoice/?lang=en Chorus Pro "Submit invoice" documentation
  */
 class ChorusProClient
@@ -25,7 +27,7 @@ class ChorusProClient
 	public const string SANDBOX_OAUTH_URI = 'https://sandbox-oauth.piste.gouv.fr/api/oauth/token';
 	public const string PRODUCTION_OAUTH_URI = 'https://oauth.piste.gouv.fr/api/oauth/token';
 
-	// Chorus Pro API base URLs. This exact path was only confirmed via third-party documentation, not an official *.gouv.fr source; re-verify it on the PISTE API catalog once registered, before going to production.
+	// Chorus Pro API base URLs. Host and base path ("/cpro/factures") confirmed on the official PISTE API catalog ("API de Test pour Factures" product sheet); endpoint-specific paths below are appended to the "/v1/" segment of this base.
 	public const string SANDBOX_API_BASE_URI = 'https://sandbox-api.piste.gouv.fr/cpro/factures/v1/';
 	public const string PRODUCTION_API_BASE_URI = 'https://api.piste.gouv.fr/cpro/factures/v1/';
 
@@ -46,6 +48,8 @@ class ChorusProClient
 		private readonly ChorusProSubmissionMode $submissionMode,
 		private readonly string $clientId,
 		private readonly string $clientSecret,
+		private readonly string $accountLogin,
+		private readonly string $accountPassword,
 		private readonly bool $enabled = false,
 		private readonly string $scope = 'openid',
 		private readonly LoggerInterface $logger = new NullLogger(),
@@ -107,14 +111,15 @@ class ChorusProClient
 	}
 
 	/**
-	 * Gets the status of a previously submitted invoice.
+	 * Gets the status of a previously submitted invoice, via the "consulterHistoriqueFacture" method (endpoint "/v1/consulter/historique"), which reports the invoice's current status along with its event history.
+	 * All Chorus Pro "factures" API endpoints use POST, including this consultation one (confirmed on the official PISTE API catalog).
 	 * @param string $submissionId
 	 * @return array|null
 	 */
 	public function getInvoiceStatus(string $submissionId): ?array
 	{
 		try {
-			return $this->callApi(HTTPMethod::GET, 'consulterFacture', ['idFacture' => $submissionId]);
+			return $this->callApi(HTTPMethod::POST, 'consulter/historique', ['idFacture' => $submissionId]);
 		}
 		catch (\RuntimeException $e) {
 			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
@@ -326,7 +331,7 @@ class ChorusProClient
 	 */
 	private function callSoumettreFacture(array $payload): ?array
 	{
-		return $this->callApi(HTTPMethod::POST, 'soumettreFacture', $payload);
+		return $this->callApi(HTTPMethod::POST, 'soumettre', $payload);
 	}
 
 	/**
@@ -347,6 +352,7 @@ class ChorusProClient
 
 		$response = $this->requestExecutor->send($method, ($this->sandbox ? self::SANDBOX_API_BASE_URI : self::PRODUCTION_API_BASE_URI).$endpoint, $data, [
 			'Authorization' => 'Bearer '.$accessToken,
+			'cpro-account' => base64_encode($this->accountLogin.':'.$this->accountPassword),
 		], jsonBody: HTTPMethod::POST === $method);
 
 		if (null === $response) {
