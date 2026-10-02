@@ -81,6 +81,10 @@ final class PDFGeneratorTest extends TestCase
 		$this->assertGreaterThan($mediaBox[3], $mediaBox[2]); // width > height in landscape
 
 		// Failure case: destination directory cannot be created (permission denied)
+		if (!function_exists('posix_getuid')) {
+			// posix extension is unavailable (e.g. Windows), permissions cannot be tested reliably
+			$this->markTestSkipped('Cannot test permission failure without the posix extension.');
+		}
 		if (0 === posix_getuid()) {
 			// Running as root bypasses filesystem permissions, this scenario cannot be reproduced
 			$this->markTestSkipped('Cannot test permission failure while running as root.');

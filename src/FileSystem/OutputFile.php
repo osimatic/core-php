@@ -89,6 +89,6 @@ class OutputFile
 		}
 
 		$extension = File::getExtension($path);
-		return !empty($extension) ? mb_strtolower($extension) : null;
+		return !empty($extension) ? $extension : null;
 	}
 }

@@ -380,7 +380,7 @@ class File
 			return false;
 		}
 
-		$extension = mb_strtolower('.'.pathinfo($clientOriginalName, PATHINFO_EXTENSION));
+		$extension = self::getExtension($clientOriginalName, withDot: true);
 		if (empty($extension) || (!empty($extensionsAllowed) && !in_array($extension, $extensionsAllowed, true))) {
 			return false;
 		}
@@ -554,17 +554,20 @@ class File
 	// ========== File Extension Management ==========
 
 	/**
-	 * Returns the file extension from a file path.
+	 * Returns the file extension from a file path, always in lowercase.
 	 * By default, returns only the last extension (e.g., 'gz' for 'file.tar.gz').
 	 * When includeDoubleExtension is true, returns common double extensions like .tar.gz, .tar.bz2, etc.
 	 * @param string $filePath The file path or filename
 	 * @param bool $includeDoubleExtension Whether to check for and return double extensions (default: false)
-	 * @return string The file extension (without dot). May be a double extension like 'tar.gz' if includeDoubleExtension is true
+	 * @param bool $withDot Whether to prefix the extension with a dot, e.g. '.pdf' instead of 'pdf' (default: false). An empty extension is always returned without dot.
+	 * @return string The lowercase file extension (without dot unless withDot is true). May be a double extension like 'tar.gz' if includeDoubleExtension is true
 	 */
-	public static function getExtension(string $filePath, bool $includeDoubleExtension = false): string
+	public static function getExtension(string $filePath, bool $includeDoubleExtension = false, bool $withDot = false): string
 	{
+		$extension = null;
+
 		if ($includeDoubleExtension) {
-			$filename = basename($filePath);
+			$filename = mb_strtolower(basename($filePath));
 
 			// List of common double extensions
 			$doubleExtensions = [
@@ -574,14 +577,17 @@ class File
 
 			// Check if file has a double extension
 			foreach ($doubleExtensions as $doubleExt) {
-				if (str_ends_with(mb_strtolower($filename), '.' . $doubleExt)) {
-					return $doubleExt;
+				if (str_ends_with($filename, '.' . $doubleExt)) {
+					$extension = $doubleExt;
+					break;
 				}
 			}
 		}
 
-		// Return simple extension
-		return pathinfo($filePath, PATHINFO_EXTENSION);
+		// Simple extension
+		$extension ??= mb_strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+		return $withDot && '' !== $extension ? '.'.$extension : $extension;
 	}
 
 	/**

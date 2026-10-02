@@ -78,31 +78,31 @@ final class PhoneNumberTest extends TestCase
 
 	public function testFormatWithNationalFormat(): void
 	{
-		$result = PhoneNumber::format('0612345678', \libphonenumber\PhoneNumberFormat::NATIONAL, 'FR');
+		$result = PhoneNumber::format('0612345678', \Osimatic\Messaging\PhoneNumberFormat::NATIONAL, 'FR');
 		$this->assertSame('06 12 34 56 78', $result);
 	}
 
 	public function testFormatWithInternationalFormat(): void
 	{
-		$result = PhoneNumber::format('0612345678', \libphonenumber\PhoneNumberFormat::INTERNATIONAL, 'FR');
+		$result = PhoneNumber::format('0612345678', \Osimatic\Messaging\PhoneNumberFormat::INTERNATIONAL, 'FR');
 		$this->assertSame('+33 6 12 34 56 78', $result);
 	}
 
 	public function testFormatWithE164Format(): void
 	{
-		$result = PhoneNumber::format('0612345678', \libphonenumber\PhoneNumberFormat::E164, 'FR');
+		$result = PhoneNumber::format('0612345678', \Osimatic\Messaging\PhoneNumberFormat::E164, 'FR');
 		$this->assertSame('+33612345678', $result);
 	}
 
 	public function testFormatWithNull(): void
 	{
-		$result = PhoneNumber::format(null, \libphonenumber\PhoneNumberFormat::NATIONAL);
+		$result = PhoneNumber::format(null, \Osimatic\Messaging\PhoneNumberFormat::NATIONAL);
 		$this->assertNull($result);
 	}
 
 	public function testFormatWithInvalidNumber(): void
 	{
-		$result = PhoneNumber::format('invalid', \libphonenumber\PhoneNumberFormat::NATIONAL, 'FR');
+		$result = PhoneNumber::format('invalid', \Osimatic\Messaging\PhoneNumberFormat::NATIONAL, 'FR');
 		$this->assertSame('invalid', $result);
 	}
 

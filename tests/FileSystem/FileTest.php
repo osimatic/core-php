@@ -136,6 +136,22 @@ final class FileTest extends TestCase
 		// Non-double extensions should return simple extension even with includeDoubleExtension = true
 		$this->assertEquals('txt', File::getExtension('file.txt', true));
 		$this->assertEquals('pdf', File::getExtension('document.pdf', true));
+
+		// Extension is always returned in lowercase
+		$this->assertSame('pdf', File::getExtension('DOCUMENT.PDF'));
+		$this->assertSame('jpg', File::getExtension('/path/to/Image.JpG'));
+		$this->assertSame('tar.gz', File::getExtension('ARCHIVE.TAR.GZ', true));
+		$this->assertSame('gz', File::getExtension('ARCHIVE.TAR.GZ'));
+
+		// With dot
+		$this->assertSame('.txt', File::getExtension('file.txt', withDot: true));
+		$this->assertSame('.pdf', File::getExtension('DOCUMENT.PDF', withDot: true));
+		$this->assertSame('.tar.gz', File::getExtension('archive.tar.gz', true, true));
+		$this->assertSame('.gz', File::getExtension('archive.tar.gz', false, true));
+
+		// Empty extension is returned without dot
+		$this->assertSame('', File::getExtension('noextension', withDot: true));
+		$this->assertSame('', File::getExtension('', withDot: true));
 	}
 
 	public function testReplaceExtension(): void
@@ -393,8 +409,7 @@ final class FileTest extends TestCase
 	{
 		$base64Data = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag(['file_data' => $base64Data]);
+		$request = new \Symfony\Component\HttpFoundation\Request(request: ['file_data' => $base64Data]);
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->once())
@@ -412,8 +427,7 @@ final class FileTest extends TestCase
 	{
 		$invalidBase64 = 'invalid!!!base64';
 
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag(['file_data' => $invalidBase64]);
+		$request = new \Symfony\Component\HttpFoundation\Request(request: ['file_data' => $invalidBase64]);
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->atLeastOnce())
@@ -430,12 +444,7 @@ final class FileTest extends TestCase
 		$uploadedFile->method('getSize')->willReturn(1024);
 		$uploadedFile->method('getError')->willReturn(UPLOAD_ERR_OK);
 
-		$files = $this->createMock(\Symfony\Component\HttpFoundation\FileBag::class);
-		$files->method('get')->willReturn($uploadedFile);
-
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag([]);
-		$request->files = $files;
+		$request = new \Symfony\Component\HttpFoundation\Request(files: ['file' => $uploadedFile]);
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->atLeastOnce())
@@ -453,12 +462,7 @@ final class FileTest extends TestCase
 		$uploadedFile->method('getError')->willReturn(UPLOAD_ERR_INI_SIZE);
 		$uploadedFile->method('getErrorMessage')->willReturn('The file exceeds the upload_max_filesize directive');
 
-		$files = $this->createMock(\Symfony\Component\HttpFoundation\FileBag::class);
-		$files->method('get')->willReturn($uploadedFile);
-
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag([]);
-		$request->files = $files;
+		$request = new \Symfony\Component\HttpFoundation\Request(files: ['file' => $uploadedFile]);
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->atLeastOnce())
@@ -477,12 +481,7 @@ final class FileTest extends TestCase
 		$uploadedFile->method('getRealPath')->willReturn(__FILE__); // Use this test file
 		$uploadedFile->method('getClientOriginalName')->willReturn('test.php');
 
-		$files = $this->createMock(\Symfony\Component\HttpFoundation\FileBag::class);
-		$files->method('get')->willReturn($uploadedFile);
-
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag([]);
-		$request->files = $files;
+		$request = new \Symfony\Component\HttpFoundation\Request(files: ['file' => $uploadedFile]);
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->atLeastOnce())
@@ -496,12 +495,7 @@ final class FileTest extends TestCase
 
 	public function testGetUploadedFileFromRequestNotFound(): void
 	{
-		$request = $this->createMock(\Symfony\Component\HttpFoundation\Request::class);
-		$request->request = new \Symfony\Component\HttpFoundation\InputBag([]);
-
-		$files = $this->createMock(\Symfony\Component\HttpFoundation\FileBag::class);
-		$files->method('get')->willReturn(null);
-		$request->files = $files;
+		$request = new \Symfony\Component\HttpFoundation\Request();
 
 		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
 		$logger->expects($this->once())
@@ -686,6 +680,12 @@ final class FileTest extends TestCase
 		$result = File::check($tempFile, 'file.txt', null, null);
 
 		$this->assertTrue($result);
+
+		// Extension comparison is case-insensitive
+		$this->assertTrue(File::check($tempFile, 'FILE.TXT', ['.txt']));
+
+		// A file name without extension is always rejected
+		$this->assertFalse(File::check($tempFile, 'noextension'));
 
 		// Cleanup
 		unlink($tempFile);

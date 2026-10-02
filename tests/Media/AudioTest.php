@@ -783,6 +783,19 @@ final class AudioTest extends TestCase
 
 		// Cleanup
 		unlink($tempFile);
+
+		// Real files whose extension does not match the detected format are rejected
+		$wavFile = __DIR__ . '/../fixtures/audio/test_mono_8000hz.wav';
+		$mp3File = __DIR__ . '/../fixtures/audio/test_stereo_128kbps.mp3';
+		$this->assertFalse(Audio::checkFile($wavFile, 'test.mp3'));
+		$this->assertFalse(Audio::checkFile($mp3File, 'test.wav'));
+
+		// Matching extension is accepted regardless of case
+		$this->assertTrue(Audio::checkFile($wavFile, 'TEST.WAV'));
+		$this->assertTrue(Audio::checkFile($mp3File, 'TEST.MP3'));
+
+		// Alternative extensions of the detected format are accepted
+		$this->assertTrue(Audio::checkFile($mp3File, 'test.mpga'));
 	}
 
 	public function testGetDurationReturnsZeroForInvalidFile(): void

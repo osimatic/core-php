@@ -305,11 +305,29 @@ class Audio
 			return false;
 		}
 
-		if (!empty($formatsAllowed) && !in_array(self::getFormat($filePath), $formatsAllowed, true)) {
-			return false;
+		if (!empty($formatsAllowed)) {
+			$format = self::getFormat($filePath);
+			if (!in_array($format, $formatsAllowed, true) || !self::isExtensionConsistentWithFormat($clientOriginalName, $format)) {
+				return false;
+			}
 		}
 
 		return true;
+	}
+
+	/**
+	 * Check that the extension of a file name matches the detected audio format (e.g. a WAV file named "audio.mp3" is inconsistent).
+	 * @param string $clientOriginalName The original filename from the client
+	 * @param string $format The detected audio format identifier (e.g., MP3_FORMAT, WAV_FORMAT)
+	 * @return bool True if the extension belongs to the given format, false otherwise
+	 */
+	private static function isExtensionConsistentWithFormat(string $clientOriginalName, string $format): bool
+	{
+		// The WebM format identifier differs from its key in getExtensionsAndMimeTypes()
+		$key = self::WEBM_FORMAT === $format ? 'weba' : $format;
+		$extensions = self::getExtensionsAndMimeTypes()[$key][0] ?? [];
+
+		return in_array(\Osimatic\FileSystem\File::getExtension($clientOriginalName, withDot: true), $extensions, true);
 	}
 
 	/**

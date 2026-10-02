@@ -779,12 +779,12 @@ final class GoogleMapsTest extends TestCase
 		];
 
 		$postalAddress = $this->createMock(\Osimatic\Location\PostalAddressInterface::class);
-		$postalAddress->expects(self::once())->method('setRoad')->with(self::isType('string'));
+		$postalAddress->expects(self::once())->method('setRoad')->with(self::isString());
 		$postalAddress->expects(self::once())->method('setPostcode')->with('SW1A 2AA');
 		$postalAddress->expects(self::once())->method('setCity')->with('London');
 		$postalAddress->expects(self::once())->method('setCountryCode')->with('GB');
-		$postalAddress->expects(self::once())->method('setCoordinates')->with(self::isType('string'));
-		$postalAddress->expects(self::once())->method('setFormattedAddress')->with(self::isType('string'));
+		$postalAddress->expects(self::once())->method('setCoordinates')->with(self::isString());
+		$postalAddress->expects(self::once())->method('setFormattedAddress')->with(self::isString());
 
 		$success = GoogleMaps::initPostalAddressFromResult($postalAddress, $result);
 
