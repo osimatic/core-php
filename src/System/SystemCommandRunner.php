@@ -11,7 +11,7 @@ use Symfony\Component\Process\Exception\ProcessFailedException;
  * Utility class for executing system commands using Symfony Process component.
  * Provides logging, error handling, and configurable execution options.
  */
-class Command
+class SystemCommandRunner
 {
 	/**
 	 * The PSR-3 logger instance.
@@ -38,7 +38,7 @@ class Command
 	private ?array $environmentVariables = null;
 
 	/**
-	 * Create a new Command instance.
+	 * Create a new SystemCommandRunner instance.
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
 	 */
 	public function __construct(LoggerInterface $logger = new NullLogger())
@@ -163,9 +163,9 @@ class Command
 	 * Does not throw exceptions, returns a result object with all information.
 	 * @param string|array $command Command to execute (string or array of arguments)
 	 * @param float|null $timeout Optional timeout override (null = use default timeout)
-	 * @return CommandResult Result object containing output, errors, and exit code
+	 * @return SystemCommandResult Result object containing output, errors, and exit code
 	 */
-	public function runWithResult(string|array $command, ?float $timeout = null): CommandResult
+	public function runWithResult(string|array $command, ?float $timeout = null): SystemCommandResult
 	{
 		$process = $this->createProcess($command, $timeout);
 
@@ -181,7 +181,7 @@ class Command
 				]);
 			}
 
-			return new CommandResult(
+			return new SystemCommandResult(
 				$process->isSuccessful(),
 				$process->getOutput(),
 				$process->getErrorOutput(),
@@ -193,7 +193,7 @@ class Command
 				'exception' => $e,
 			]);
 
-			return new CommandResult(
+			return new SystemCommandResult(
 				false,
 				'',
 				$e->getMessage(),

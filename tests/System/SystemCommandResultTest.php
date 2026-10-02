@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Tests\System;
 
-use Osimatic\System\CommandResult;
+use Osimatic\System\SystemCommandResult;
 use PHPUnit\Framework\TestCase;
 
-final class CommandResultTest extends TestCase
+final class SystemCommandResultTest extends TestCase
 {
 	/* ===================== Constructor ===================== */
 
 	public function testConstructorWithSuccessfulResult(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: true,
 			output: 'Success output',
 			errorOutput: '',
 			exitCode: 0
 		);
 
-		$this->assertInstanceOf(CommandResult::class, $result);
+		$this->assertInstanceOf(SystemCommandResult::class, $result);
 		$this->assertTrue($result->success);
 		$this->assertSame('Success output', $result->output);
 		$this->assertSame('', $result->errorOutput);
@@ -29,14 +29,14 @@ final class CommandResultTest extends TestCase
 
 	public function testConstructorWithFailedResult(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: false,
 			output: '',
 			errorOutput: 'Error message',
 			exitCode: 1
 		);
 
-		$this->assertInstanceOf(CommandResult::class, $result);
+		$this->assertInstanceOf(SystemCommandResult::class, $result);
 		$this->assertFalse($result->success);
 		$this->assertSame('', $result->output);
 		$this->assertSame('Error message', $result->errorOutput);
@@ -47,14 +47,14 @@ final class CommandResultTest extends TestCase
 
 	public function testIsSuccessfulReturnsTrueForSuccessfulCommand(): void
 	{
-		$result = new CommandResult(true, 'output', '', 0);
+		$result = new SystemCommandResult(true, 'output', '', 0);
 
 		$this->assertTrue($result->isSuccessful());
 	}
 
 	public function testIsSuccessfulReturnsFalseForFailedCommand(): void
 	{
-		$result = new CommandResult(false, '', 'error', 1);
+		$result = new SystemCommandResult(false, '', 'error', 1);
 
 		$this->assertFalse($result->isSuccessful());
 	}
@@ -63,14 +63,14 @@ final class CommandResultTest extends TestCase
 
 	public function testIsFailedReturnsFalseForSuccessfulCommand(): void
 	{
-		$result = new CommandResult(true, 'output', '', 0);
+		$result = new SystemCommandResult(true, 'output', '', 0);
 
 		$this->assertFalse($result->isFailed());
 	}
 
 	public function testIsFailedReturnsTrueForFailedCommand(): void
 	{
-		$result = new CommandResult(false, '', 'error', 1);
+		$result = new SystemCommandResult(false, '', 'error', 1);
 
 		$this->assertTrue($result->isFailed());
 	}
@@ -79,14 +79,14 @@ final class CommandResultTest extends TestCase
 
 	public function testGetOutputReturnsOutput(): void
 	{
-		$result = new CommandResult(true, 'Command output', '', 0);
+		$result = new SystemCommandResult(true, 'Command output', '', 0);
 
 		$this->assertSame('Command output', $result->getOutput());
 	}
 
 	public function testGetOutputReturnsEmptyStringWhenNoOutput(): void
 	{
-		$result = new CommandResult(false, '', 'error', 1);
+		$result = new SystemCommandResult(false, '', 'error', 1);
 
 		$this->assertSame('', $result->getOutput());
 	}
@@ -95,14 +95,14 @@ final class CommandResultTest extends TestCase
 
 	public function testGetErrorOutputReturnsErrorOutput(): void
 	{
-		$result = new CommandResult(false, '', 'Error message', 1);
+		$result = new SystemCommandResult(false, '', 'Error message', 1);
 
 		$this->assertSame('Error message', $result->getErrorOutput());
 	}
 
 	public function testGetErrorOutputReturnsEmptyStringWhenNoError(): void
 	{
-		$result = new CommandResult(true, 'output', '', 0);
+		$result = new SystemCommandResult(true, 'output', '', 0);
 
 		$this->assertSame('', $result->getErrorOutput());
 	}
@@ -111,27 +111,27 @@ final class CommandResultTest extends TestCase
 
 	public function testGetExitCodeReturnsZeroForSuccess(): void
 	{
-		$result = new CommandResult(true, 'output', '', 0);
+		$result = new SystemCommandResult(true, 'output', '', 0);
 
 		$this->assertSame(0, $result->getExitCode());
 	}
 
 	public function testGetExitCodeReturnsNonZeroForFailure(): void
 	{
-		$result = new CommandResult(false, '', 'error', 1);
+		$result = new SystemCommandResult(false, '', 'error', 1);
 
 		$this->assertSame(1, $result->getExitCode());
 	}
 
 	public function testGetExitCodeWithDifferentExitCodes(): void
 	{
-		$result1 = new CommandResult(false, '', 'error', 127);
+		$result1 = new SystemCommandResult(false, '', 'error', 127);
 		$this->assertSame(127, $result1->getExitCode());
 
-		$result2 = new CommandResult(false, '', 'error', 255);
+		$result2 = new SystemCommandResult(false, '', 'error', 255);
 		$this->assertSame(255, $result2->getExitCode());
 
-		$result3 = new CommandResult(false, '', 'error', -1);
+		$result3 = new SystemCommandResult(false, '', 'error', -1);
 		$this->assertSame(-1, $result3->getExitCode());
 	}
 
@@ -139,21 +139,21 @@ final class CommandResultTest extends TestCase
 
 	public function testGetCombinedOutputWithOnlyStdout(): void
 	{
-		$result = new CommandResult(true, 'stdout content', '', 0);
+		$result = new SystemCommandResult(true, 'stdout content', '', 0);
 
 		$this->assertSame('stdout content', $result->getCombinedOutput());
 	}
 
 	public function testGetCombinedOutputWithOnlyStderr(): void
 	{
-		$result = new CommandResult(false, '', 'stderr content', 1);
+		$result = new SystemCommandResult(false, '', 'stderr content', 1);
 
 		$this->assertSame("\nstderr content", $result->getCombinedOutput());
 	}
 
 	public function testGetCombinedOutputWithBothStdoutAndStderr(): void
 	{
-		$result = new CommandResult(false, 'stdout content', 'stderr content', 1);
+		$result = new SystemCommandResult(false, 'stdout content', 'stderr content', 1);
 
 		$expected = "stdout content\nstderr content";
 		$this->assertSame($expected, $result->getCombinedOutput());
@@ -161,7 +161,7 @@ final class CommandResultTest extends TestCase
 
 	public function testGetCombinedOutputWithNoOutput(): void
 	{
-		$result = new CommandResult(true, '', '', 0);
+		$result = new SystemCommandResult(true, '', '', 0);
 
 		$this->assertSame('', $result->getCombinedOutput());
 	}
@@ -170,7 +170,7 @@ final class CommandResultTest extends TestCase
 
 	public function testReadonlyPropertiesAreAccessible(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: true,
 			output: 'test output',
 			errorOutput: 'test error',
@@ -185,9 +185,9 @@ final class CommandResultTest extends TestCase
 
 	/* ===================== Real-World Scenarios ===================== */
 
-	public function testSuccessfulCommandResult(): void
+	public function testSuccessfulSystemCommandResult(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: true,
 			output: "PHP 8.2.0 (cli)\nCopyright (c) The PHP Group",
 			errorOutput: '',
@@ -203,7 +203,7 @@ final class CommandResultTest extends TestCase
 
 	public function testFailedCommandWithErrorOutput(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: false,
 			output: '',
 			errorOutput: 'php: command not found',
@@ -219,7 +219,7 @@ final class CommandResultTest extends TestCase
 
 	public function testCommandWithBothOutputs(): void
 	{
-		$result = new CommandResult(
+		$result = new SystemCommandResult(
 			success: false,
 			output: 'Processing...',
 			errorOutput: 'Warning: deprecated function used',

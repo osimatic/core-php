@@ -6,10 +6,10 @@ namespace Osimatic\System;
  * Immutable value object representing the result of a command execution.
  * Contains the success status, output, error output, and exit code.
  */
-readonly class CommandResult
+readonly class SystemCommandResult
 {
 	/**
-	 * Create a new CommandResult instance.
+	 * Create a new SystemCommandResult instance.
 	 * @param bool $success Whether the command executed successfully (exit code 0)
 	 * @param string $output Command output from stdout
 	 * @param string $errorOutput Command error output from stderr

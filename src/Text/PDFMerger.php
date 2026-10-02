@@ -97,7 +97,7 @@ class PDFMerger
 			}
 		}
 
-		return (new \Osimatic\System\Command($this->logger))->run(array_merge(
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run(array_merge(
 			[$this->getPdfToolkitBinaryPath()],
 				$pdfList,
 				[

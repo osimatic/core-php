@@ -115,7 +115,7 @@ class AudioConverter
 			$destAudioFilePath = \Osimatic\FileSystem\File::replaceExtension($destAudioFilePath, 'wav');
 		}
 
-		return (new \Osimatic\System\Command($this->logger))->run([
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run([
 			$this->getSoxBinaryPath(),
 			$fileFormat === Audio::MP3_FORMAT ? '-t' : null,
 			$fileFormat === Audio::MP3_FORMAT ? 'mp3' : null,
@@ -171,7 +171,7 @@ class AudioConverter
 			$destAudioFilePath = \Osimatic\FileSystem\File::replaceExtension($destAudioFilePath, 'mp3');
 		}
 
-		return (new \Osimatic\System\Command($this->logger))->run([
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run([
 			$this->getSoxBinaryPath(),
 			'-t', 'wav',
 			'-r', (string) $sampleRate,
@@ -216,7 +216,7 @@ class AudioConverter
 			unlink($destAudioFilePath);
 		}
 
-		return (new \Osimatic\System\Command($this->logger))->run([
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run([
 			$this->getFfmpegBinaryPath(),
 			'-i', $srcAudioFilePath,
 			'-ab', $bitrate,

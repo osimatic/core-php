@@ -64,7 +64,7 @@ class PDFConverter
 	 */
 	public function convertImageToPdf(string $imageFilePath, string $pdfFilePath): bool
 	{
-		return (new \Osimatic\System\Command($this->logger))->run([
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run([
 			$this->getImagickConverterBinaryPath(),
 			$imageFilePath,
 			$pdfFilePath
@@ -92,7 +92,7 @@ class PDFConverter
 			return false;
 		}
 
-		return (new \Osimatic\System\Command($this->logger))->run([
+		return (new \Osimatic\System\SystemCommandRunner($this->logger))->run([
 			$this->getImagickConverterBinaryPath(),
 			'-quality', '100',
 			'-density', '150',

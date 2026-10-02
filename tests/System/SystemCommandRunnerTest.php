@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\System;
 
-use Osimatic\System\Command;
-use Osimatic\System\CommandResult;
+use Osimatic\System\SystemCommandRunner;
+use Osimatic\System\SystemCommandResult;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -13,26 +13,26 @@ use Psr\Log\NullLogger;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 
 #[AllowMockObjectsWithoutExpectations]
-final class CommandTest extends TestCase
+final class SystemCommandRunnerTest extends TestCase
 {
 	/* ===================== Constructor & Configuration ===================== */
 
 	public function testConstructorWithoutLogger(): void
 	{
-		$command = new Command();
-		$this->assertInstanceOf(Command::class, $command);
+		$command = new SystemCommandRunner();
+		$this->assertInstanceOf(SystemCommandRunner::class, $command);
 	}
 
 	public function testConstructorWithLogger(): void
 	{
 		$logger = $this->createMock(LoggerInterface::class);
-		$command = new Command($logger);
-		$this->assertInstanceOf(Command::class, $command);
+		$command = new SystemCommandRunner($logger);
+		$this->assertInstanceOf(SystemCommandRunner::class, $command);
 	}
 
 	public function testSetLogger(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$logger = $this->createMock(LoggerInterface::class);
 
 		$result = $command->setLogger($logger);
@@ -42,7 +42,7 @@ final class CommandTest extends TestCase
 
 	public function testSetTimeout(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$result = $command->setTimeout(120.0);
 
 		$this->assertSame($command, $result, 'setTimeout should return $this for method chaining');
@@ -50,7 +50,7 @@ final class CommandTest extends TestCase
 
 	public function testSetTimeoutNull(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$result = $command->setTimeout(null);
 
 		$this->assertSame($command, $result);
@@ -58,7 +58,7 @@ final class CommandTest extends TestCase
 
 	public function testSetWorkingDirectory(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$result = $command->setWorkingDirectory(__DIR__);
 
 		$this->assertSame($command, $result, 'setWorkingDirectory should return $this for method chaining');
@@ -66,7 +66,7 @@ final class CommandTest extends TestCase
 
 	public function testSetEnvironmentVariables(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$env = ['FOO' => 'bar', 'TEST' => 'value'];
 		$result = $command->setEnvironmentVariables($env);
 
@@ -75,7 +75,7 @@ final class CommandTest extends TestCase
 
 	public function testMethodChaining(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$logger = $this->createMock(LoggerInterface::class);
 
 		$result = $command
@@ -91,7 +91,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithSuccessfulCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		// Use a simple command that should work on all platforms
 		$result = $command->run('php --version');
@@ -101,7 +101,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithSuccessfulCommandAsArray(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->run(['php', '--version']);
 
@@ -110,7 +110,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithFailedCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		// Use a command that should fail
 		$result = $command->run('php --invalid-option-that-does-not-exist');
@@ -125,7 +125,7 @@ final class CommandTest extends TestCase
 			->method('info')
 			->with($this->stringContains('Executed command:'));
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 		$command->run('php --version');
 	}
 
@@ -139,13 +139,13 @@ final class CommandTest extends TestCase
 				$this->arrayHasKey('exit_code')
 			);
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 		$command->run('php --invalid-option-that-does-not-exist');
 	}
 
 	public function testRunWithCustomTimeout(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		// Short timeout for a command that completes quickly
 		$result = $command->run('php --version', 5.0);
@@ -157,7 +157,7 @@ final class CommandTest extends TestCase
 
 	public function testExecuteReturnsOutput(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$output = $command->execute('php --version');
 
@@ -167,7 +167,7 @@ final class CommandTest extends TestCase
 
 	public function testExecuteWithCommandArray(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$output = $command->execute(['php', '--version']);
 
@@ -177,7 +177,7 @@ final class CommandTest extends TestCase
 
 	public function testExecuteThrowsExceptionOnFailure(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$this->expectException(ProcessFailedException::class);
 		$command->execute('php --invalid-option-that-does-not-exist');
@@ -190,7 +190,7 @@ final class CommandTest extends TestCase
 			->method('info')
 			->with($this->stringContains('Executed command:'));
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 		$command->execute('php --version');
 	}
 
@@ -204,7 +204,7 @@ final class CommandTest extends TestCase
 				$this->arrayHasKey('exit_code')
 			);
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 
 		try {
 			$command->execute('php --invalid-option-that-does-not-exist');
@@ -215,18 +215,18 @@ final class CommandTest extends TestCase
 
 	/* ===================== runWithResult() Method ===================== */
 
-	public function testRunWithResultReturnsCommandResult(): void
+	public function testRunWithResultReturnsSystemCommandResult(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->runWithResult('php --version');
 
-		$this->assertInstanceOf(CommandResult::class, $result);
+		$this->assertInstanceOf(SystemCommandResult::class, $result);
 	}
 
 	public function testRunWithResultSuccessfulCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->runWithResult('php --version');
 
@@ -238,7 +238,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithResultFailedCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->runWithResult('php --invalid-option-that-does-not-exist');
 
@@ -250,7 +250,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithResultWithCommandArray(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->runWithResult(['php', '--version']);
 
@@ -265,7 +265,7 @@ final class CommandTest extends TestCase
 			->method('info')
 			->with($this->stringContains('Executed command:'));
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 		$command->runWithResult('php --version');
 	}
 
@@ -275,7 +275,7 @@ final class CommandTest extends TestCase
 		$logger->expects($this->atLeastOnce())
 			->method('error');
 
-		$command = new Command($logger);
+		$command = new SystemCommandRunner($logger);
 		$command->runWithResult('php --invalid-option-that-does-not-exist');
 	}
 
@@ -283,7 +283,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithWorkingDirectory(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$command->setWorkingDirectory(__DIR__);
 
 		// This command should work regardless of working directory
@@ -296,7 +296,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithEnvironmentVariables(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 		$command->setEnvironmentVariables(['TEST_VAR' => 'test_value']);
 
 		// On Unix-like systems
@@ -317,7 +317,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithEmptyCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->run('');
 
@@ -326,7 +326,7 @@ final class CommandTest extends TestCase
 
 	public function testRunWithResultEmptyCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$result = $command->runWithResult('');
 
@@ -335,7 +335,7 @@ final class CommandTest extends TestCase
 
 	public function testExecuteWithEmptyCommand(): void
 	{
-		$command = new Command();
+		$command = new SystemCommandRunner();
 
 		$this->expectException(ProcessFailedException::class);
 		$command->execute('');
