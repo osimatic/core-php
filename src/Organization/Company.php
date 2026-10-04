@@ -37,8 +37,28 @@ class Company
 	// ========== FRANCE ==========
 
 	/**
+	 * Parses a French SIREN number as entered by a user, removing spaces so it can be validated and stored in its canonical digits-only form
+	 * @param string $siren the SIREN number, possibly containing spaces
+	 * @return string the cleaned SIREN number
+	 */
+	public static function parseFranceSiren(string $siren): string
+	{
+		return \Osimatic\Text\Str::removeSpaces($siren);
+	}
+
+	/**
+	 * Parses a French SIRET number as entered by a user, removing spaces so it can be validated and stored in its canonical digits-only form
+	 * @param string $siret the SIRET number, possibly containing spaces
+	 * @return string the cleaned SIRET number
+	 */
+	public static function parseFranceSiret(string $siret): string
+	{
+		return \Osimatic\Text\Str::removeSpaces($siret);
+	}
+
+	/**
 	 * Validates a French SIREN number (Système d'Identification du Répertoire des ENtreprises)
-	 * The SIREN consists of 8 digits plus a check digit validated using the Luhn algorithm
+	 * The SIREN consists of 9 digits (8 digits plus a check digit) validated using the Luhn algorithm
 	 * @link http://fr.wikipedia.org/wiki/SIREN
 	 * @param string $siren the SIREN number to validate
 	 * @return bool true if valid, false otherwise
@@ -75,6 +95,34 @@ class Company
 		}
 		// SIRET validity check using Luhn algorithm (key "1-2")
 		return \Osimatic\Number\Number::checkLuhn((int) $siret);
+	}
+
+	/**
+	 * Formats a French SIREN number for display, grouped by blocks of 3 digits, e.g. "217 402 379"
+	 * @param string $siren the SIREN number, possibly containing spaces
+	 * @return string the formatted SIREN number, or the cleaned input unchanged if it is not a 9-digit number
+	 */
+	public static function formatFranceSiren(string $siren): string
+	{
+		$siren = self::parseFranceSiren($siren);
+		if (9 !== \strlen($siren)) {
+			return $siren;
+		}
+		return rtrim(chunk_split($siren, 3, ' '));
+	}
+
+	/**
+	 * Formats a French SIRET number for display, grouped as the 9-digit SIREN followed by the 5-digit NIC, e.g. "217 402 379 00069"
+	 * @param string $siret the SIRET number
+	 * @return string the formatted SIRET number, or the cleaned input unchanged if it is not a 14-digit number
+	 */
+	public static function formatFranceSiret(string $siret): string
+	{
+		$siret = self::parseFranceSiret($siret);
+		if (14 !== \strlen($siret)) {
+			return $siret;
+		}
+		return chunk_split(substr($siret, 0, 9), 3, ' ').substr($siret, 9);
 	}
 
 	/**
@@ -138,7 +186,7 @@ class Company
 	public static function formatFranceRcs(string $siret): string
 	{
 		$siren = substr($siret, 0, -5);
-		return 'B '.chunk_split($siren, 3, ' ');
+		return 'B '.rtrim(chunk_split($siren, 3, ' '));
 	}
 
 	// ========== MONACO ==========

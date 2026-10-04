@@ -9,145 +9,138 @@ use PHPUnit\Framework\TestCase;
 
 final class CompanyTest extends TestCase
 {
-	/* ===================== checkCompanyName() ===================== */
+	// ========================================
+	// Company Name & Number Tests
+	// ========================================
 
-	public function testCheckCompanyNameValid(): void
+	public function testIsValidCompanyName(): void
 	{
-		$this->assertTrue(Company::checkCompanyName('ACME Corporation'));
-		$this->assertTrue(Company::checkCompanyName('Société Martin & Fils'));
-		$this->assertTrue(Company::checkCompanyName('ABC-123'));
-		$this->assertTrue(Company::checkCompanyName("L'Entreprise"));
-		$this->assertTrue(Company::checkCompanyName('Café Müller'));
-		$this->assertTrue(Company::checkCompanyName('Company (France)'));
-		$this->assertTrue(Company::checkCompanyName('A.B.C. S.A.'));
+		// Valid names
+		$this->assertTrue(Company::isValidCompanyName('ACME Corporation'));
+		$this->assertTrue(Company::isValidCompanyName('Société Martin & Fils'));
+		$this->assertTrue(Company::isValidCompanyName('ABC-123'));
+		$this->assertTrue(Company::isValidCompanyName("L'Entreprise"));
+		$this->assertTrue(Company::isValidCompanyName('Café Müller'));
+		$this->assertTrue(Company::isValidCompanyName('Company (France)'));
+		$this->assertTrue(Company::isValidCompanyName('A.B.C. S.A.'));
+
+		// Min length
+		$this->assertTrue(Company::isValidCompanyName('ABC'));
+		$this->assertFalse(Company::isValidCompanyName('AB'));
+
+		// Max length
+		$this->assertTrue(Company::isValidCompanyName(str_repeat('a', 100)));
+		$this->assertFalse(Company::isValidCompanyName(str_repeat('a', 101)));
+
+		// Invalid names
+		$this->assertFalse(Company::isValidCompanyName(''));
+		$this->assertFalse(Company::isValidCompanyName('A'));
+		$this->assertFalse(Company::isValidCompanyName('Company@mail'));
 	}
 
-	public function testCheckCompanyNameMinLength(): void
+	public function testIsValidCompanyNumber(): void
 	{
-		$this->assertTrue(Company::checkCompanyName('ABC'));
-		$this->assertFalse(Company::checkCompanyName('AB')); // trop court
+		// France: valid SIREN
+		$this->assertTrue(Company::isValidCompanyNumber('FR', '732829320'));
+
+		// France: invalid SIREN
+		$this->assertFalse(Company::isValidCompanyNumber('FR', '123456789'));
+		$this->assertFalse(Company::isValidCompanyNumber('FR', ''));
+
+		// Other countries: always valid
+		$this->assertTrue(Company::isValidCompanyNumber('US', '123456789'));
+		$this->assertTrue(Company::isValidCompanyNumber('DE', 'DE123456789'));
 	}
 
-	public function testCheckCompanyNameMaxLength(): void
-	{
-		$longName = str_repeat('a', 100);
-		$this->assertTrue(Company::checkCompanyName($longName));
+	// ========================================
+	// France Tests
+	// ========================================
 
-		$tooLongName = str_repeat('a', 101);
-		$this->assertFalse(Company::checkCompanyName($tooLongName));
+	public function testParseFranceSiren(): void
+	{
+		$this->assertSame('732829320', Company::parseFranceSiren('732829320'));
+		$this->assertSame('732829320', Company::parseFranceSiren('732 829 320'));
+		$this->assertSame('732829320', Company::parseFranceSiren(" 732\t829\n320 "));
+		$this->assertSame('', Company::parseFranceSiren(''));
+		$this->assertSame('', Company::parseFranceSiren('   '));
 	}
 
-	public function testCheckCompanyNameInvalid(): void
+	public function testParseFranceSiret(): void
 	{
-		$this->assertFalse(Company::checkCompanyName(''));
-		$this->assertFalse(Company::checkCompanyName('A'));
-		$this->assertFalse(Company::checkCompanyName('Company@mail'));
+		$this->assertSame('73282932000074', Company::parseFranceSiret('73282932000074'));
+		$this->assertSame('73282932000074', Company::parseFranceSiret('732 829 320 00074'));
+		$this->assertSame('73282932000074', Company::parseFranceSiret(" 732\t829 320\n00074 "));
+		$this->assertSame('', Company::parseFranceSiret(''));
+		$this->assertSame('', Company::parseFranceSiret('   '));
 	}
 
-	/* ===================== checkCompanyNumber() ===================== */
-
-	public function testCheckCompanyNumberFrance(): void
+	public function testIsValidFranceSiren(): void
 	{
-		// SIREN valide : 732 829 320 (Wikipédia)
-		$this->assertTrue(Company::checkCompanyNumber('FR', '732829320'));
+		// Valid SIREN
+		$this->assertTrue(Company::isValidFranceSiren('732829320'));
+		$this->assertTrue(Company::isValidFranceSiren('552100554'));
 
-		// SIREN invalide
-		$this->assertFalse(Company::checkCompanyNumber('FR', '123456789'));
+		// Invalid format
+		$this->assertFalse(Company::isValidFranceSiren('12345678'));
+		$this->assertFalse(Company::isValidFranceSiren('1234567890'));
+		$this->assertFalse(Company::isValidFranceSiren('ABC123456'));
+		$this->assertFalse(Company::isValidFranceSiren('732 829 320'));
+		$this->assertFalse(Company::isValidFranceSiren(''));
+
+		// Invalid Luhn check digit
+		$this->assertFalse(Company::isValidFranceSiren('123456789'));
+		$this->assertFalse(Company::isValidFranceSiren('111111111'));
 	}
 
-	public function testCheckCompanyNumberOtherCountry(): void
+	public function testIsValidFranceSiret(): void
 	{
-		// Pour les autres pays, la méthode retourne toujours true
-		$this->assertTrue(Company::checkCompanyNumber('US', '123456789'));
-		$this->assertTrue(Company::checkCompanyNumber('DE', 'DE123456789'));
+		// Valid SIRET
+		$this->assertTrue(Company::isValidFranceSiret('73282932000074'));
+
+		// Invalid format
+		$this->assertFalse(Company::isValidFranceSiret('7328293200007'));
+		$this->assertFalse(Company::isValidFranceSiret('732829320000745'));
+		$this->assertFalse(Company::isValidFranceSiret('ABC1234567890'));
+		$this->assertFalse(Company::isValidFranceSiret('732 829 320 00074'));
+		$this->assertFalse(Company::isValidFranceSiret(''));
+
+		// Invalid SIREN
+		$this->assertFalse(Company::isValidFranceSiret('12345678900001'));
+
+		// Valid SIREN but invalid SIRET Luhn check digit
+		$this->assertFalse(Company::isValidFranceSiret('73282932000075'));
 	}
 
-	/* ===================== checkFranceSiren() ===================== */
-
-	public function testCheckFranceSirenValid(): void
+	public function testFormatFranceSiren(): void
 	{
-		// SIREN valide : 732 829 320 (Wikipédia)
-		$this->assertTrue(Company::checkFranceSiren('732829320'));
+		// 9 digits are grouped by 3
+		$this->assertSame('732 829 320', Company::formatFranceSiren('732829320'));
 
-		// SIREN valide : 552 100 554 (Google France)
-		$this->assertTrue(Company::checkFranceSiren('552100554'));
+		// Already formatted or containing whitespace
+		$this->assertSame('732 829 320', Company::formatFranceSiren('732 829 320'));
+		$this->assertSame('732 829 320', Company::formatFranceSiren(" 732829 320\t"));
+
+		// Not a 9-digit number: cleaned input returned unchanged
+		$this->assertSame('12345678', Company::formatFranceSiren('12345678'));
+		$this->assertSame('1234567890', Company::formatFranceSiren('123 456 7890'));
+		$this->assertSame('73282932000074', Company::formatFranceSiren('73282932000074'));
+		$this->assertSame('', Company::formatFranceSiren(''));
 	}
 
-	public function testCheckFranceSirenInvalidFormat(): void
+	public function testFormatFranceSiret(): void
 	{
-		$this->assertFalse(Company::checkFranceSiren('12345678')); // trop court
-		$this->assertFalse(Company::checkFranceSiren('1234567890')); // trop long
-		$this->assertFalse(Company::checkFranceSiren('ABC123456')); // lettres
-		$this->assertFalse(Company::checkFranceSiren(''));
+		// 14 digits are grouped as SIREN (by 3) followed by the 5-digit NIC
+		$this->assertSame('732 829 320 00074', Company::formatFranceSiret('73282932000074'));
+
+		// Already formatted or containing whitespace
+		$this->assertSame('732 829 320 00074', Company::formatFranceSiret('732 829 320 00074'));
+		$this->assertSame('732 829 320 00074', Company::formatFranceSiret(" 73282932000074\n"));
+
+		// Not a 14-digit number: cleaned input returned unchanged
+		$this->assertSame('7328293200007', Company::formatFranceSiret('7328293200007'));
+		$this->assertSame('732829320', Company::formatFranceSiret('732 829 320'));
+		$this->assertSame('', Company::formatFranceSiret(''));
 	}
-
-	public function testCheckFranceSirenInvalidLuhn(): void
-	{
-		// SIREN avec mauvaise clé de contrôle
-		$this->assertFalse(Company::checkFranceSiren('123456789'));
-		$this->assertFalse(Company::checkFranceSiren('111111111'));
-	}
-
-	/* ===================== checkFranceSiret() ===================== */
-
-	public function testCheckFranceSiretValid(): void
-	{
-		// SIRET valide : 732 829 320 00074 (exemple Wikipédia)
-		$this->assertTrue(Company::checkFranceSiret('73282932000074'));
-	}
-
-	public function testCheckFranceSiretInvalidFormat(): void
-	{
-		$this->assertFalse(Company::checkFranceSiret('1234567890123')); // trop court
-		$this->assertFalse(Company::checkFranceSiret('123456789012345')); // trop long
-		$this->assertFalse(Company::checkFranceSiret('ABC1234567890')); // lettres
-		$this->assertFalse(Company::checkFranceSiret(''));
-	}
-
-	public function testCheckFranceSiretInvalidSiren(): void
-	{
-		// SIRET avec SIREN invalide
-		$this->assertFalse(Company::checkFranceSiret('12345678900001'));
-	}
-
-	public function testCheckFranceSiretInvalidLuhn(): void
-	{
-		// SIRET avec SIREN valide mais mauvaise clé de contrôle SIRET
-		$this->assertFalse(Company::checkFranceSiret('73282932000075'));
-	}
-
-	/* ===================== checkFranceCodeNaf() ===================== */
-
-	public function testCheckFranceCodeNafValid(): void
-	{
-		$this->assertTrue(Company::checkFranceCodeNaf('01.11Z'));
-		$this->assertTrue(Company::checkFranceCodeNaf('62.01Z'));
-		$this->assertTrue(Company::checkFranceCodeNaf('47.11F'));
-	}
-
-	public function testCheckFranceCodeNafInvalidFormat(): void
-	{
-		$this->assertFalse(Company::checkFranceCodeNaf(''));
-		$this->assertFalse(Company::checkFranceCodeNaf('1234')); // trop court
-		$this->assertFalse(Company::checkFranceCodeNaf('123456')); // trop long
-		$this->assertFalse(Company::checkFranceCodeNaf('AB.CD'));
-	}
-
-	public function testCheckFranceCodeNafInvalidCode(): void
-	{
-		$this->assertFalse(Company::checkFranceCodeNaf('99.99Z')); // code inexistant
-		$this->assertFalse(Company::checkFranceCodeNaf('00.00A'));
-	}
-
-	/* ===================== checkFranceCodeApe() ===================== */
-
-	public function testCheckFranceCodeApe(): void
-	{
-		$this->assertTrue(Company::checkFranceCodeApe('01.11Z'));
-		$this->assertFalse(Company::checkFranceCodeApe('99.99Z'));
-	}
-
-	/* ===================== getFranceApeCodeList() ===================== */
 
 	public function testGetFranceApeCodeList(): void
 	{
@@ -157,66 +150,122 @@ final class CompanyTest extends TestCase
 		$this->assertArrayHasKey('0111Z', $list);
 	}
 
-	/* ===================== getFranceApeLabel() ===================== */
-
-	public function testGetFranceApeLabelValid(): void
+	public function testIsValidFranceCodeApe(): void
 	{
+		$this->assertTrue(Company::isValidFranceCodeApe('01.11Z'));
+		$this->assertTrue(Company::isValidFranceCodeApe('0111Z'));
+		$this->assertFalse(Company::isValidFranceCodeApe('99.99Z'));
+		$this->assertFalse(Company::isValidFranceCodeApe(''));
+	}
+
+	public function testIsValidFranceCodeNaf(): void
+	{
+		// Valid codes, with or without dot
+		$this->assertTrue(Company::isValidFranceCodeNaf('01.11Z'));
+		$this->assertTrue(Company::isValidFranceCodeNaf('0111Z'));
+		$this->assertTrue(Company::isValidFranceCodeNaf('62.01Z'));
+		$this->assertTrue(Company::isValidFranceCodeNaf('47.11F'));
+
+		// Invalid format
+		$this->assertFalse(Company::isValidFranceCodeNaf(''));
+		$this->assertFalse(Company::isValidFranceCodeNaf('1234'));
+		$this->assertFalse(Company::isValidFranceCodeNaf('123456'));
+		$this->assertFalse(Company::isValidFranceCodeNaf('AB.CD'));
+
+		// Unknown codes
+		$this->assertFalse(Company::isValidFranceCodeNaf('99.99Z'));
+		$this->assertFalse(Company::isValidFranceCodeNaf('00.00A'));
+	}
+
+	public function testGetFranceApeLabel(): void
+	{
+		// Known code, with or without dot
 		$label = Company::getFranceApeLabel('01.11Z');
-		$this->assertNotEmpty($label);
 		$this->assertIsString($label);
-	}
+		$this->assertNotEmpty($label);
+		$this->assertSame($label, Company::getFranceApeLabel('0111Z'));
 
-	public function testGetFranceApeLabelInvalid(): void
-	{
-		$label = Company::getFranceApeLabel('99.99Z');
-		$this->assertSame('', $label);
+		// Unknown code
+		$this->assertSame('', Company::getFranceApeLabel('99.99Z'));
+		$this->assertSame('', Company::getFranceApeLabel(''));
 	}
-
-	/* ===================== formatFranceRcs() ===================== */
 
 	public function testFormatFranceRcs(): void
 	{
 		$rcs = Company::formatFranceRcs('73282932000074');
 		$this->assertIsString($rcs);
-		$this->assertStringContainsString('B ', $rcs);
-		$this->assertStringContainsString('732 829 320', $rcs);
+		$this->assertSame('B 732 829 320', $rcs);
 	}
 
-	public function testFormatFranceRcsFormatting(): void
+	// ========================================
+	// Monaco Tests
+	// ========================================
+
+	public function testIsValidMonacoNis(): void
 	{
-		$rcs = Company::formatFranceRcs('73282932000074');
-		$this->assertIsString($rcs);
-		$this->assertStringContainsString('B ', $rcs);
-		// Vérifie que les espaces sont présents tous les 3 chiffres
-		$this->assertMatchesRegularExpression('/B \d{3} \d{3} \d{3}/', $rcs);
+		// Valid
+		$this->assertTrue(Company::isValidMonacoNis('12345'));
+		$this->assertTrue(Company::isValidMonacoNis('ABCDE'));
+		$this->assertTrue(Company::isValidMonacoNis('A1B2C'));
+		$this->assertTrue(Company::isValidMonacoNis('1234567890'));
+
+		// Invalid length
+		$this->assertFalse(Company::isValidMonacoNis('1234'));
+		$this->assertFalse(Company::isValidMonacoNis('12345678901'));
+
+		// Invalid characters
+		$this->assertFalse(Company::isValidMonacoNis('ABC-12'));
+		$this->assertFalse(Company::isValidMonacoNis('ABC@12'));
+		$this->assertFalse(Company::isValidMonacoNis(''));
+
+		// Only uppercase letters are accepted
+		$this->assertFalse(Company::isValidMonacoNis('abcde'));
 	}
 
-	/* ===================== checkMonacoNis() ===================== */
+	// ========================================
+	// Deprecated Methods Tests
+	// ========================================
 
-	public function testCheckMonacoNisValid(): void
+	public function testCheckCompanyName(): void
+	{
+		$this->assertTrue(Company::checkCompanyName('ACME Corporation'));
+		$this->assertFalse(Company::checkCompanyName('AB'));
+	}
+
+	public function testCheckCompanyNumber(): void
+	{
+		$this->assertTrue(Company::checkCompanyNumber('FR', '732829320'));
+		$this->assertFalse(Company::checkCompanyNumber('FR', '123456789'));
+		$this->assertTrue(Company::checkCompanyNumber('US', '123456789'));
+	}
+
+	public function testCheckFranceSiren(): void
+	{
+		$this->assertTrue(Company::checkFranceSiren('732829320'));
+		$this->assertFalse(Company::checkFranceSiren('123456789'));
+	}
+
+	public function testCheckFranceSiret(): void
+	{
+		$this->assertTrue(Company::checkFranceSiret('73282932000074'));
+		$this->assertFalse(Company::checkFranceSiret('73282932000075'));
+	}
+
+	public function testCheckFranceCodeApe(): void
+	{
+		$this->assertTrue(Company::checkFranceCodeApe('01.11Z'));
+		$this->assertFalse(Company::checkFranceCodeApe('99.99Z'));
+	}
+
+	public function testCheckFranceCodeNaf(): void
+	{
+		$this->assertTrue(Company::checkFranceCodeNaf('01.11Z'));
+		$this->assertFalse(Company::checkFranceCodeNaf('99.99Z'));
+	}
+
+	public function testCheckMonacoNis(): void
 	{
 		$this->assertTrue(Company::checkMonacoNis('12345'));
-		$this->assertTrue(Company::checkMonacoNis('ABCDE'));
-		$this->assertTrue(Company::checkMonacoNis('A1B2C'));
-		$this->assertTrue(Company::checkMonacoNis('1234567890'));
-	}
-
-	public function testCheckMonacoNisInvalidLength(): void
-	{
-		$this->assertFalse(Company::checkMonacoNis('1234')); // trop court
-		$this->assertFalse(Company::checkMonacoNis('12345678901')); // trop long
-	}
-
-	public function testCheckMonacoNisInvalidCharacters(): void
-	{
-		$this->assertFalse(Company::checkMonacoNis('ABC-12'));
-		$this->assertFalse(Company::checkMonacoNis('ABC@12'));
-		$this->assertFalse(Company::checkMonacoNis(''));
-	}
-
-	public function testCheckMonacoNisLowerCase(): void
-	{
-		// La regex n'accepte que les majuscules
-		$this->assertFalse(Company::checkMonacoNis('abcde'));
+		$this->assertFalse(Company::checkMonacoNis('1234'));
 	}
 }
