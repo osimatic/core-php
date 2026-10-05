@@ -14,12 +14,6 @@ interface ChorusProRecipientInterface
 	public function isChorusProRecipient(): bool;
 
 	/**
-	 * Gets the SIRET of the "service exécutant" (executing service), which may differ from the recipient's main SIRET.
-	 * @return string|null
-	 */
-	public function getChorusProServiceSiret(): ?string;
-
-	/**
 	 * Gets the Chorus Pro service code, required for the TYPE_2 invoicing category.
 	 * @return string|null
 	 */

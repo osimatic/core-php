@@ -273,10 +273,10 @@ class ChorusProClient
 
 		return [
 			'modeDepot' => ChorusProSubmissionMode::SAISIE_API->value,
-			'dateFacture' => $invoice->getDate()->format('Y-m-d\TH:i:s.v\Z'),
+			'dateFacture' => $invoice->getDate()->format('Y-m-d'),
 			'destinataire' => [
 				'codeDestinataire' => $buyer->getRegistrationNumber(),
-				'codeServiceExecutant' => $buyer->getChorusProServiceSiret() ?? $buyer->getRegistrationNumber(),
+				'codeServiceExecutant' => $buyer->getChorusProServiceCode(),
 			],
 			'fournisseur' => [
 				'idFournisseur' => $this->resolveStructureId($invoice->getSeller()->getRegistrationNumber()),

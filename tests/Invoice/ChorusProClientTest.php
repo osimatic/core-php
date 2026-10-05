@@ -58,7 +58,6 @@ final class ChorusProClientTest extends TestCase
 		$buyer = $this->createMockForIntersectionOfInterfaces([OrganizationInterface::class, ChorusProRecipientInterface::class]);
 		$buyer->method('isChorusProRecipient')->willReturn($isRecipient);
 		$buyer->method('getChorusProInvoiceCategory')->willReturn($category);
-		$buyer->method('getChorusProServiceSiret')->willReturn(null);
 		$buyer->method('getChorusProServiceCode')->willReturn(null);
 		$buyer->method('getRegistrationNumber')->willReturn('98765432100034');
 		$buyer->method('getName')->willReturn('Mairie de Test');
