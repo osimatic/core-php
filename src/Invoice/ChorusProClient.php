@@ -27,9 +27,9 @@ class ChorusProClient
 	public const string SANDBOX_OAUTH_URI = 'https://sandbox-oauth.piste.gouv.fr/api/oauth/token';
 	public const string PRODUCTION_OAUTH_URI = 'https://oauth.piste.gouv.fr/api/oauth/token';
 
-	// Chorus Pro API base URLs. Host and base path ("/cpro/factures") confirmed on the official PISTE API catalog ("API de Test pour Factures" product sheet); endpoint-specific paths below are appended to the "/v1/" segment of this base.
-	public const string SANDBOX_API_BASE_URI = 'https://sandbox-api.piste.gouv.fr/cpro/factures/v1/';
-	public const string PRODUCTION_API_BASE_URI = 'https://api.piste.gouv.fr/cpro/factures/v1/';
+	// Chorus Pro API domain, shared by all PISTE "cpro" products (Factures, Structures, etc.). The full route of each product, e.g. "cpro/factures/v1/soumettre", is passed to callApi().
+	public const string SANDBOX_API_BASE_URI = 'https://sandbox-api.piste.gouv.fr';
+	public const string PRODUCTION_API_BASE_URI = 'https://api.piste.gouv.fr';
 
 	// Standard supplier invoice framework, as opposed to e.g. a subcontractor invoice
 	private const string DEFAULT_INVOICING_FRAMEWORK_CODE = 'A1_FACTURE_FOURNISSEUR';
@@ -61,6 +61,7 @@ class ChorusProClient
 		private readonly FacturXGenerator $facturXGenerator = new FacturXGenerator(),
 		private readonly PDFGenerator $pdfGenerator = new PDFGenerator(),
 		private readonly ChorusProVatType $vatType = ChorusProVatType::VAT_ON_DEBIT,
+		private readonly ?int $supplierStructureId = null, // the Chorus Pro internal structure id ("idStructureCPP") of the supplier (our own SIRET); if null, resolveStructureId() resolves it via the API instead
 		private readonly bool $sandbox = true, // true to target the PISTE sandbox (default), false for production
 	) {}
 
@@ -122,7 +123,7 @@ class ChorusProClient
 	public function getInvoiceStatus(string $submissionId): ?array
 	{
 		try {
-			return $this->callApi(HTTPMethod::POST, 'consulter/historique', ['idFacture' => $submissionId]);
+			return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/consulter/historique', ['idFacture' => $submissionId]);
 		}
 		catch (\RuntimeException $e) {
 			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
@@ -315,18 +316,23 @@ class ChorusProClient
 	}
 
 	/**
-	 * Resolves the Chorus Pro internal structure id ("idStructureCPP"), via the "rechercherStructure" method (endpoint "/v1/rechercher"), for the SIRET of the structure submitting the invoice ("fournisseur.idFournisseur" in the SAISIE_API payload, which Chorus Pro expects as this internal id rather than the SIRET itself).
-	 * The result is cached for the lifetime of this instance, since the submitting structure's SIRET is always the same across invoices.
+	 * Resolves the Chorus Pro internal structure id ("idStructureCPP") for the SIRET of the structure submitting the invoice ("fournisseur.idFournisseur" in the SAISIE_API payload, which Chorus Pro expects as this internal id rather than the SIRET itself).
+	 * If $supplierStructureId is configured, it is returned directly, since the submitting structure's SIRET is always the same across invoices and its id can be resolved once and configured instead of being looked up on every submission.
+	 * Otherwise it is resolved via the "rechercherStructure" method (endpoint "/v1/rechercher" of the "Structures" API, a separate PISTE product from "Factures") and cached for the lifetime of this instance.
 	 * @param string $siret
 	 * @return int|null
 	 */
 	private function resolveStructureId(string $siret): ?int
 	{
+		if (null !== $this->supplierStructureId) {
+			return $this->supplierStructureId;
+		}
+
 		if (\array_key_exists($siret, $this->structureIdCache)) {
 			return $this->structureIdCache[$siret];
 		}
 
-		$response = $this->callApi(HTTPMethod::POST, 'rechercher', [
+		$response = $this->callApi(HTTPMethod::POST, 'cpro/structures/v1/rechercher', [
 			'structure' => [
 				'identifiantStructure' => $siret,
 				'typeIdentifiantStructure' => 'SIRET',
@@ -360,44 +366,44 @@ class ChorusProClient
 	 */
 	private function callSoumettreFacture(array $payload): ?array
 	{
-		return $this->callApi(HTTPMethod::POST, 'soumettre', $payload);
+		return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/soumettre', $payload);
 	}
 
 	/**
 	 * Calls an authenticated Chorus Pro API endpoint and returns its JSON-decoded response.
 	 * The HTTP status is checked here because the API reports business errors (rejected invoice, invalid field, etc.) as an error status with a JSON body, which would otherwise be mistaken for a valid response.
 	 * @param HTTPMethod $method
-	 * @param string $endpoint The endpoint name, relative to the API base URI (e.g. "soumettreFacture")
+	 * @param string $route The full route, relative to the API domain (e.g. "cpro/factures/v1/soumettre")
 	 * @param array $data The request data: query parameters for GET, JSON body for POST
 	 * @return array|null The decoded response, or null if authentication failed or the response is not a valid JSON object
 	 * @throws \RuntimeException If the API answers with an HTTP error status (4xx/5xx), the message contains the status code and the beginning of the response body
 	 */
-	private function callApi(HTTPMethod $method, string $endpoint, array $data): ?array
+	private function callApi(HTTPMethod $method, string $route, array $data): ?array
 	{
 		if (null === ($accessToken = $this->getAccessToken())) {
-			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" aborted: could not authenticate against PISTE.');
+			$this->logger->error('Chorus Pro API call to "'.$route.'" aborted: could not authenticate against PISTE.');
 			return null;
 		}
 
-		$response = $this->requestExecutor->send($method, ($this->sandbox ? self::SANDBOX_API_BASE_URI : self::PRODUCTION_API_BASE_URI).$endpoint, $data, [
+		$response = $this->requestExecutor->send($method, ($this->sandbox ? self::SANDBOX_API_BASE_URI : self::PRODUCTION_API_BASE_URI).'/'.$route, $data, [
 			'Authorization' => 'Bearer '.$accessToken,
 			'cpro-account' => base64_encode($this->accountLogin.':'.$this->accountPassword),
 		], jsonBody: HTTPMethod::POST === $method);
 
 		if (null === $response) {
-			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" failed: no response from the API.');
+			$this->logger->error('Chorus Pro API call to "'.$route.'" failed: no response from the API.');
 			return null;
 		}
 
 		$body = (string) $response->getBody();
 
 		if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-			throw new \RuntimeException('Chorus Pro API call to "'.$endpoint.'" returned HTTP '.$response->getStatusCode().': '.mb_substr($body, 0, 500));
+			throw new \RuntimeException('Chorus Pro API call to "'.$route.'" returned HTTP '.$response->getStatusCode().': '.mb_substr($body, 0, 500));
 		}
 
 		$decodedResponse = json_decode($body, true);
 		if (!is_array($decodedResponse)) {
-			$this->logger->error('Chorus Pro API call to "'.$endpoint.'" failed: the response is not a valid JSON object.');
+			$this->logger->error('Chorus Pro API call to "'.$route.'" failed: the response is not a valid JSON object.');
 			return null;
 		}
 
