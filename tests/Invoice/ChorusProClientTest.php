@@ -149,7 +149,7 @@ final class ChorusProClientTest extends TestCase
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
 				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
-				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '12345'])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '12345'])),
 			]),
 		);
 		$result = $clientSaisieApi->submit($invoiceSaisieApi);
@@ -215,7 +215,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
-				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '67890'])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '67890'])),
 			]),
 		);
 		$result = $clientEdiXml->submit($invoiceEdiXml);
@@ -246,7 +246,7 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				$this->createOauthTokenResponse(),
-				new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => 'ABCDE'])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => 'ABCDE'])),
 			]),
 		);
 		$result = $clientDepotPdf->submit($invoiceDepotPdf, '<html><body><h1>Invoice</h1></body></html>');
@@ -326,7 +326,7 @@ final class ChorusProClientTest extends TestCase
 			$httpClient->method('sendRequest')->willReturnCallback(function ($request) use (&$requestBodies) {
 				$requestBodies[] = (string) $request->getBody();
 				return str_contains((string) $request->getUri(), 'soumettre')
-					? new Response(200, ['Content-Type' => 'application/json'], json_encode(['idFacture' => '1']))
+					? new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '1']))
 					: $this->createOauthTokenResponse();
 			});
 			$requestBodies = [];

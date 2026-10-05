@@ -106,7 +106,7 @@ class ChorusProClient
 		}
 
 		// Without an identifier the submission cannot be followed up. The invoice may nevertheless have been accepted by Chorus Pro, hence the explicit warning against blindly resubmitting (duplicate).
-		if (null === ($submissionId = $response['idFacture'] ?? $response['id'] ?? null)) {
+		if (null === ($submissionId = $response['identifiantFactureCPP'] ?? null)) {
 			$this->logger->error('Chorus Pro response contains no invoice identifier: '.mb_substr(json_encode($response), 0, 500));
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro response contains no invoice identifier. The invoice may have been received: check in Chorus Pro before submitting it again.');
 		}
