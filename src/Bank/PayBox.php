@@ -272,102 +272,6 @@ class PayBox
 	/** HTTP request executor for making API calls */
 	private HTTPRequestExecutor $requestExecutor;
 
-	/**
-	 * Visa card response codes mapping from PayBox/Verifone
-	 * Maps 5-digit Visa response codes to French error messages as specified by PayBox API
-	 * Used to interpret card issuer response codes in the 00100-00199 range
-	 * @var array<string, string>
-	 */
-	private static array $visaResponseCodes = [
-		'00100' => 'Transaction approuvée ou traitée avec succès',
-		'00101' => 'Contacter l’émetteur de carte',
-		'00102' => 'Contacter l’émetteur de carte',
-		'00103' => 'Commerçant invalide',
-		'00104' => 'Conserver la carte',
-		'00105' => 'Ne pas honorer',
-		'00107' => 'Conserver la carte, conditions spéciales',
-		'00108' => 'Approuver après identification du porteur',
-		'00112' => 'Transaction invalide',
-		'00113' => 'Montant invalide',
-		'00114' => 'Numéro de porteur invalide',
-		'00115' => 'Emetteur de carte inconnu',
-		'00117' => 'Annulation client',
-		'00119' => 'Répéter la transaction ultérieurement',
-		'00120' => 'Réponse erronée (erreur dans le domaine serveur)',
-		'00124' => 'Mise à jour de fichier non supportée',
-		'00125' => 'Impossible de localiser l’enregistrement dans le fichier',
-		'00126' => 'Enregistrement dupliqué, ancien enregistrement remplacé',
-		'00127' => 'Erreur en « edit » sur champ de mise à jour fichier',
-		'00128' => 'Accès interdit au fichier',
-		'00129' => 'Mise à jour de fichier impossible',
-		'00130' => 'Erreur de format',
-		'00131' => 'Identifiant de l’organisme acquéreur inconnu.',
-		'00133' => 'Date de validité de la carte dépassée.',
-		'00134' => 'Suspicion de fraude.',
-		'00138' => 'Nombre d’essais code confidentiel dépassé',
-		'00141' => 'Carte perdue',
-		'00143' => 'Carte volée',
-		'00151' => 'Provision insuffisante ou crédit dépassé',
-		'00154' => 'Date de validité de la carte dépassée',
-		'00155' => 'Code confidentiel erroné',
-		'00156' => 'Carte absente du fichier',
-		'00157' => 'Transaction non permise à ce porteur',
-		'00158' => 'Transaction interdite au terminal',
-		'00159' => 'Suspicion de fraude',
-		'00160' => 'L’accepteur de carte doit contacter l’acquéreur',
-		'00161' => 'Dépasse la limite du montant de retrait',
-		'00163' => 'Règles de sécurité non respectées',
-		'00168' => 'Réponse non parvenue ou reçue trop tard',
-		'00175' => 'Nombre d’essais code confidentiel dépassé',
-		'00176' => 'Porteur déjà en opposition, ancien enregistrement conservé',
-		'00189' => 'Echec de l’authentification',
-		'00190' => 'Arrêt momentané du système',
-		'00191' => 'Emetteur de cartes inaccessible',
-		'00194' => 'Demande dupliquée',
-		'00196' => 'Mauvais fonctionnement du système',
-		'00197' => 'Echéance de la temporisation de surveillance globale',
-		'00198' => 'Serveur inaccessible (positionné par le serveur).',
-		'00199' => 'Incident domaine initiateur.',
-	];
-
-	/**
-	 * PayBox system response codes mapping
-	 * Maps 5-digit PayBox response codes to French error messages as specified by PayBox API
-	 * Used to interpret PayBox platform errors in the 00000-00099 range
-	 * Code '00000' indicates successful operation
-	 * @var array<string, string>
-	 */
-	private static array $responseCodes = [
-		'00000' => 'Opération réussie',
-		'00001' => 'Echec de connexion au centre d’autorisation',
-		'00002' => 'Une erreur de cohérence est survenue',
-		'00003' => 'Erreur Paybox',
-		'00004' => 'Numéro de porteur ou cryptogramme visuel invalide',
-		'00005' => 'Numéro de question invalide',
-		'00006' => 'Accès refusé ou site/rang/identifiant incorrect',
-		'00007' => 'Date invalide',
-		'00008' => 'Date de fin de validité incorrecte',
-		'00009' => 'Type d’opération invalide.',
-		'00010' => 'Devise inconnue',
-		'00011' => 'Montant incorrect',
-		'00012' => 'Référence commande invalide',
-		'00013' => 'Cette version n’est plus soutenue',
-		'00014' => 'Trame reçue incohérente',
-		'00015' => 'Erreur d’accès aux données précédemment référencées.',
-		'00016' => 'Abonné déjà existant (inscription nouvel abonné)',
-		'00017' => 'Abonné inexistant.',
-		'00018' => 'Transaction non trouvée',
-		'00020' => 'Cryptogramme visuel non présent',
-		'00021' => 'Carte non autorisée',
-		'00022' => 'Plafond atteint',
-		'00023' => 'Porteur déjà passé aujourd’hui',
-		'00024' => 'Code pays filtré pour ce commerçant',
-		'00026' => 'Code activité incorrect',
-		'00040' => 'Porteur enrôlé mais non authentifié',
-		'00097' => 'Timeout de connexion atteint',
-		'00098' => 'Erreur de connexion interne',
-		'00099' => 'Incohérence entre la question et la réponse. Refaire une nouvelle tentative ultérieurement',
-	];
 
 	/**
 	 * Initialize PayBox payment gateway integration
@@ -1379,20 +1283,19 @@ class PayBox
 
 		// Parsing return parameters
 		parse_str($res, $tabArg);
-		$responseCode = $tabArg['CODEREPONSE'] ?? '';
+		$rawResponseCode = $tabArg['CODEREPONSE'] ?? '';
+		$responseCode = PayBoxResponseCode::parse($rawResponseCode);
 
-		$responseCodes = array_merge(self::$responseCodes, self::$visaResponseCodes);
-
-		if ($responseCode !== '00000') {
-			$this->logger?->error('Response code: ' . $responseCode.' ; Error message: ' . ($responseCodes[$responseCode] ?? 'Erreur inconnue'));
+		if (null === $responseCode || !$responseCode->isSuccess()) {
+			$this->logger?->error('Response code: ' . $rawResponseCode.' ; Error message: ' . ($responseCode?->getMessage() ?? 'Erreur inconnue'));
 			return null;
 		}
 
-		$this->logger?->info('Response code: ' . $responseCode.' (Opération réussie)');
+		$this->logger?->info('Response code: ' . $responseCode->value.' ('.$responseCode->getMessage().')');
 
 		$payBoxResponse = new PayBoxResponse();
 		$payBoxResponse->setReference(!empty($tabArg['REFERENCE']) ? urldecode($tabArg['REFERENCE']) : null);
-		$payBoxResponse->setResponseCode(!empty($responseCode) ? urldecode($responseCode) : null);
+		$payBoxResponse->setResponseCode($responseCode);
 		$payBoxResponse->setAuthorisationNumber(!empty($tabArg['AUTORISATION']) ? urldecode($tabArg['AUTORISATION']) : null);
 		$payBoxResponse->setCallNumber(!empty($tabArg['NUMAPPEL']) ? urldecode($tabArg['NUMAPPEL']) : null);
 		$payBoxResponse->setTransactionNumber(!empty($tabArg['NUMTRANS']) ? urldecode($tabArg['NUMTRANS']) : null);

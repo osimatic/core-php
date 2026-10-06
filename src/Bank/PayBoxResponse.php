@@ -26,9 +26,10 @@ class PayBoxResponse implements BankCardOperationResponseInterface
 	 * PayBox response code indicating the transaction result
 	 * Code '00000' indicates success, other codes indicate various error conditions
 	 * Maps to CODEREPONSE in PayBox API
-	 * @var string|null
+	 * Null when the code is missing or not a known PayBox response code
+	 * @var PayBoxResponseCode|null
 	 */
-	private ?string $responseCode = null;
+	private ?PayBoxResponseCode $responseCode = null;
 
 	/**
 	 * Call number (NUMAPPEL) returned by PayBox
@@ -149,7 +150,7 @@ class PayBoxResponse implements BankCardOperationResponseInterface
 	{
 		$payBoxResponse = new PayBoxResponse();
 		$payBoxResponse->setReference(!empty($request['ref']) ? urldecode($request['ref']) : null);
-		$payBoxResponse->setResponseCode(!empty($request['response_code']) ? urldecode($request['response_code']) : null);
+		$payBoxResponse->setResponseCode(!empty($request['response_code']) ? PayBoxResponseCode::parse(urldecode($request['response_code'])) : null);
 		$payBoxResponse->setCallNumber(!empty($request['call_nb']) ? urldecode($request['call_nb']) : null);
 		$payBoxResponse->setTransactionNumber(!empty($request['transact_nb']) ? urldecode($request['transact_nb']) : null);
 		$payBoxResponse->setAuthorisationNumber(!empty($request['authorizt_nb']) ? urldecode($request['authorizt_nb']) : null);
@@ -159,13 +160,13 @@ class PayBoxResponse implements BankCardOperationResponseInterface
 			$payBoxResponse->setCardHash(explode('  ', $request['card_ref'])[0] ?? null);
 		}
 
-		$payBoxResponse->setCardType(urldecode($request['bc_type'] ?? null));
-		$payBoxResponse->setCardLastDigits(urldecode($request['bc_ldigit'] ?? null));
+		$payBoxResponse->setCardType(!empty($request['bc_type']) ? urldecode($request['bc_type']) : null);
+		$payBoxResponse->setCardLastDigits(!empty($request['bc_ldigit']) ? urldecode($request['bc_ldigit']) : null);
 		if (!empty($request['bin6'])) {
 			$payBoxResponse->setCardNumber($request['bin6'].'********'.($request['bc_ldigit'] ?? '**'));
 		}
 
-		if (!empty($cardExpirationDate = urldecode($request['bc_expdate'] ?? null))) {
+		if (!empty($cardExpirationDate = urldecode($request['bc_expdate'] ?? ''))) {
 			$payBoxResponse->setCardExpirationDateTime(BankCard::getExpirationDateFromYearAndMonth((int) ('20'.substr($cardExpirationDate, 0, 2)), (int) (substr($cardExpirationDate, 2, 2))));
 		}
 
@@ -184,7 +185,7 @@ class PayBoxResponse implements BankCardOperationResponseInterface
 	 */
 	public function isSuccess(): bool
 	{
-		return $this->responseCode ===  '00000';
+		return $this->responseCode?->isSuccess() ?? false;
 	}
 
 	/**
@@ -226,18 +227,18 @@ class PayBoxResponse implements BankCardOperationResponseInterface
 
 	/**
 	 * Get the PayBox response code
-	 * @return string|null The response code ('00000' = success)
+	 * @return PayBoxResponseCode|null The response code (SUCCESS = '00000'), or null if missing or unknown
 	 */
-	public function getResponseCode(): ?string
+	public function getResponseCode(): ?PayBoxResponseCode
 	{
-		return $this->responseCode ?? null;
+		return $this->responseCode;
 	}
 
 	/**
 	 * Set the PayBox response code
-	 * @param string|null $responseCode The response code to set
+	 * @param PayBoxResponseCode|null $responseCode The response code to set
 	 */
-	public function setResponseCode(?string $responseCode): void
+	public function setResponseCode(?PayBoxResponseCode $responseCode): void
 	{
 		$this->responseCode = $responseCode;
 	}

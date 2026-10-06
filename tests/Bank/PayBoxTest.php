@@ -9,6 +9,7 @@ use Osimatic\Bank\BankCardCallOrigin;
 use Osimatic\Bank\BankCardOperation;
 use Osimatic\Bank\PayBox;
 use Osimatic\Bank\PayBoxResponse;
+use Osimatic\Bank\PayBoxResponseCode;
 use Osimatic\Bank\PayBoxVersion;
 use Osimatic\Bank\ShoppingCartInterface;
 use Osimatic\Invoice\BillingAddressInterface;
@@ -1763,7 +1764,7 @@ final class PayBoxTest extends TestCase
 			->newPayment();
 
 		$this->assertInstanceOf(PayBoxResponse::class, $result);
-		$this->assertSame('00000', $result->getResponseCode());
+		$this->assertSame(PayBoxResponseCode::SUCCESS, $result->getResponseCode());
 	}
 
 	public function testNewPaymentVerifiesRequestStructure(): void
