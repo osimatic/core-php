@@ -7,6 +7,7 @@ use Osimatic\Network\HTTPMethod;
 use Osimatic\Network\HTTPRequestExecutor;
 use Osimatic\Organization\OrganizationInterface;
 use Osimatic\Text\PDFGenerator;
+use Osimatic\Text\PDFSignerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -57,9 +58,9 @@ class ChorusProClient
 		private readonly string $scope = 'openid',
 		private readonly LoggerInterface $logger = new NullLogger(),
 		private readonly HTTPRequestExecutor $requestExecutor = new HTTPRequestExecutor(),
-		private readonly CiiXmlGenerator $ciiXmlGenerator = new CiiXmlGenerator(),
 		private readonly FacturXGenerator $facturXGenerator = new FacturXGenerator(),
 		private readonly PDFGenerator $pdfGenerator = new PDFGenerator(),
+		private readonly ?PDFSignerInterface $pdfSigner = null,
 		private readonly ChorusProVatType $vatType = ChorusProVatType::VAT_ON_DEBIT,
 		private readonly ?int $supplierStructureId = null, // the Chorus Pro internal structure id ("idStructureCPP") of the supplier (our own SIRET); if null, resolveStructureId() resolves it via the API instead
 		private readonly bool $sandbox = true, // true to target the PISTE sandbox (default), false for production
@@ -100,10 +101,12 @@ class ChorusProClient
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::NOT_APPLICABLE);
 		}
 
-		if ($invoice instanceof ChorusProInvoiceInterface && \in_array($invoice->getChorusProSubmissionStatus(), [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::ACCEPTED], true)) {
+		// SUBMITTED/ACCEPTED: already successfully submitted, nothing to do. UNKNOWN: Chorus Pro's answer could not be determined, so the invoice may already have been received — must not be resubmitted blindly either, pending manual verification.
+		if ($invoice instanceof ChorusProInvoiceInterface && \in_array($invoice->getChorusProSubmissionStatus(), [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::ACCEPTED, ChorusProSubmissionStatus::UNKNOWN], true)) {
 			return new ChorusProSubmissionResult(
 				$invoice->getChorusProSubmissionStatus(),
 				submissionId: $invoice->getChorusProSubmissionId(),
+				error: $invoice->getChorusProSubmissionError(),
 				dateTime: $invoice->getChorusProSubmissionDateTime() ?? new \DateTime(),
 			);
 		}
@@ -120,8 +123,8 @@ class ChorusProClient
 		try {
 			$response = match ($this->submissionMode) {
 				ChorusProSubmissionMode::SAISIE_API => $this->submitViaSaisieApi($invoice),
-				ChorusProSubmissionMode::EDI_XML_STRUCT => $this->submitViaEdiXmlStruct($invoice),
-				ChorusProSubmissionMode::DEPOT_PDF_API => $this->submitViaDepotPdfApi($invoice, $invoiceHtml),
+				ChorusProSubmissionMode::DEPOT_PDF_API => $this->submitViaPdfApi($invoice, $invoiceHtml, false),
+				ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API => $this->submitViaPdfApi($invoice, $invoiceHtml, true),
 			};
 		}
 		catch (\Throwable $e) {
@@ -129,14 +132,21 @@ class ChorusProClient
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: $e->getMessage());
 		}
 
+		// No response at all (e.g. connection dropped mid-request): Chorus Pro may have received and processed the submission before the connection failed, so this is genuinely UNKNOWN rather than a definitive ERROR, to avoid blindly resubmitting (duplicate).
 		if (null === $response) {
-			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro submission returned no response.');
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::UNKNOWN, error: 'Chorus Pro submission returned no response.');
 		}
 
-		// Without an identifier the submission cannot be followed up. The invoice may nevertheless have been accepted by Chorus Pro, hence the explicit warning against blindly resubmitting (duplicate).
+		// A 2xx HTTP response does not necessarily mean success: Chorus Pro reports business errors via "codeRetour" inside an otherwise-2xx response. This is a definitive rejection, not ambiguous, hence ERROR.
+		if (0 !== ($response['codeRetour'] ?? 0)) {
+			$this->logger->error('Chorus Pro submission rejected: '.mb_substr(json_encode($response), 0, 500));
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro rejected the submission (codeRetour '.$response['codeRetour'].'): '.($response['libelle'] ?? ''));
+		}
+
+		// A 2xx response was received (the invoice was processed) but without an identifier, the submission cannot be followed up: genuinely UNKNOWN rather than a definitive ERROR, to avoid blindly resubmitting (duplicate).
 		if (null === ($submissionId = $response['identifiantFactureCPP'] ?? null)) {
 			$this->logger->error('Chorus Pro response contains no invoice identifier: '.mb_substr(json_encode($response), 0, 500));
-			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro response contains no invoice identifier. The invoice may have been received: check in Chorus Pro before submitting it again.');
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::UNKNOWN, error: 'Chorus Pro response contains no invoice identifier. The invoice may have been received: check in Chorus Pro before submitting it again.');
 		}
 
 		return new ChorusProSubmissionResult(ChorusProSubmissionStatus::SUBMITTED, submissionId: (string) $submissionId);
@@ -171,51 +181,49 @@ class ChorusProClient
 	}
 
 	/**
-	 * @param InvoiceInterface $invoice
-	 * @return array|null
-	 */
-	private function submitViaEdiXmlStruct(InvoiceInterface $invoice): ?array
-	{
-		if (null === ($xml = $this->ciiXmlGenerator->generate($invoice))) {
-			return null;
-		}
-
-		return $this->callSoumettreFacture([
-			'modeDepot' => ChorusProSubmissionMode::EDI_XML_STRUCT->value,
-			'flux' => base64_encode($xml),
-		]);
-	}
-
-	/**
+	 * Submits the invoice as a PDF file: DEPOT_PDF_API (Factur-X hybrid PDF/A-3) or, if $signed, DEPOT_PDF_SIGNE_API (same file, additionally signed via $pdfSigner). Signing is applied after the Factur-X XML is embedded, not before, since altering a signed PDF would invalidate its signature.
 	 * @param InvoiceInterface $invoice
 	 * @param string|null $invoiceHtml
+	 * @param bool $signed
 	 * @return array|null
 	 */
-	private function submitViaDepotPdfApi(InvoiceInterface $invoice, ?string $invoiceHtml): ?array
+	private function submitViaPdfApi(InvoiceInterface $invoice, ?string $invoiceHtml, bool $signed): ?array
 	{
 		if (null === $invoiceHtml) {
-			$this->logger->error('Chorus Pro DEPOT_PDF_API mode requires the invoice HTML to render the PDF.');
-			return null;
+			throw new \RuntimeException('Chorus Pro PDF submission requires the invoice HTML to render the PDF.');
 		}
 
 		$tmpDir = sys_get_temp_dir();
 		$tmpPdfPath = $tmpDir.'/chorus_pro_'.uniqid('', true).'.pdf';
 		$tmpFacturXPath = $tmpDir.'/chorus_pro_facturx_'.uniqid('', true).'.pdf';
+		$tmpSignedPath = $tmpDir.'/chorus_pro_signed_'.uniqid('', true).'.pdf';
 
 		try {
 			if (!$this->pdfGenerator->generateFile($tmpPdfPath, $invoiceHtml)) {
-				return null;
+				throw new \RuntimeException('Chorus Pro PDF submission aborted: failed to generate the invoice PDF.');
 			}
 			if (null === $this->facturXGenerator->generate($invoice, $tmpPdfPath, $tmpFacturXPath)) {
-				return null;
+				throw new \RuntimeException('Chorus Pro PDF submission aborted: failed to generate the Factur-X file.');
 			}
-			if (!is_readable($tmpFacturXPath) || false === ($fileContent = file_get_contents($tmpFacturXPath))) {
-				$this->logger->error('Unable to read the generated Factur-X file: '.$tmpFacturXPath);
-				return null;
+
+			$pdfPath = $tmpFacturXPath;
+
+			if ($signed) {
+				if (null === $this->pdfSigner) {
+					throw new \RuntimeException('Chorus Pro DEPOT_PDF_SIGNE_API submission aborted: no PDF signer is configured.');
+				}
+				$this->pdfSigner->sign($tmpFacturXPath, $tmpSignedPath);
+				$pdfPath = $tmpSignedPath;
+			}
+
+			if (!is_readable($pdfPath) || false === ($fileContent = file_get_contents($pdfPath))) {
+				throw new \RuntimeException('Chorus Pro PDF submission aborted: unable to read the generated '.($signed ? 'signed ' : '').'file: '.$pdfPath);
 			}
 
 			return $this->callSoumettreFacture([
-				'modeDepot' => ChorusProSubmissionMode::DEPOT_PDF_API->value,
+				'modeDepot' => ($signed ? ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API : ChorusProSubmissionMode::DEPOT_PDF_API)->value,
+				'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
+				'dateFacture' => $invoice->getDate()->format('Y-m-d'),
 				'fichier' => [
 					'nomFichier' => ($invoice->getInvoiceNumber() ?: 'invoice').'.pdf',
 					'contenuFichier' => base64_encode($fileContent),
@@ -225,6 +233,7 @@ class ChorusProClient
 		finally {
 			@unlink($tmpPdfPath);
 			@unlink($tmpFacturXPath);
+			@unlink($tmpSignedPath);
 		}
 	}
 
@@ -347,15 +356,16 @@ class ChorusProClient
 	 * If $supplierStructureId is configured, it is returned directly, since the submitting structure's SIRET is always the same across invoices and its id can be resolved once and configured instead of being looked up on every submission.
 	 * Otherwise it is resolved via the "rechercherStructure" method (endpoint "/v1/rechercher" of the "Structures" API, a separate PISTE product from "Factures") and cached for the lifetime of this instance.
 	 * @param string $siret
-	 * @return int|null
+	 * @return int
+	 * @throws \RuntimeException If no structure is found in Chorus Pro for this SIRET
 	 */
-	private function resolveStructureId(string $siret): ?int
+	private function resolveStructureId(string $siret): int
 	{
 		if (null !== $this->supplierStructureId) {
 			return $this->supplierStructureId;
 		}
 
-		if (\array_key_exists($siret, $this->structureIdCache)) {
+		if (isset($this->structureIdCache[$siret])) {
 			return $this->structureIdCache[$siret];
 		}
 
@@ -366,7 +376,11 @@ class ChorusProClient
 			],
 		]);
 
-		return $this->structureIdCache[$siret] = $response['listeStructures'][0]['idStructureCPP'] ?? null;
+		if (!is_int($id = $response['listeStructures'][0]['idStructureCPP'] ?? null)) {
+			throw new \RuntimeException('Unable to resolve the Chorus Pro structure id ("idStructureCPP") for SIRET '.$siret.'.');
+		}
+
+		return $this->structureIdCache[$siret] = $id;
 	}
 
 	/**
@@ -402,14 +416,14 @@ class ChorusProClient
 	 * @param HTTPMethod $method
 	 * @param string $route The full route, relative to the API domain (e.g. "cpro/factures/v1/soumettre")
 	 * @param array $data The request data: query parameters for GET, JSON body for POST
-	 * @return array|null The decoded response, or null if authentication failed or the response is not a valid JSON object
-	 * @throws \RuntimeException If the API answers with an HTTP error status (4xx/5xx), the message contains the status code and the beginning of the response body
+	 * @return array|null The decoded response, or null if the response is not a valid JSON object
+	 * @throws \RuntimeException If authentication against PISTE failed, or if the API answers with an HTTP error status (4xx/5xx, the message then contains the status code and the beginning of the response body)
 	 */
 	private function callApi(HTTPMethod $method, string $route, array $data): ?array
 	{
+		// Not ambiguous: no request was ever sent to Chorus Pro, so this can never be mistaken for an already-processed submission.
 		if (null === ($accessToken = $this->getAccessToken())) {
-			$this->logger->error('Chorus Pro API call to "'.$route.'" aborted: could not authenticate against PISTE.');
-			return null;
+			throw new \RuntimeException('Chorus Pro API call to "'.$route.'" aborted: could not authenticate against PISTE.');
 		}
 
 		$response = $this->requestExecutor->send($method, ($this->sandbox ? self::SANDBOX_API_BASE_URI : self::PRODUCTION_API_BASE_URI).'/'.$route, $data, [

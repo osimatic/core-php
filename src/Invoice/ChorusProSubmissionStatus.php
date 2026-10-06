@@ -28,4 +28,7 @@ enum ChorusProSubmissionStatus: string
 
 	// The submission failed (invalid invoice, authentication failure, API error, etc.), the error message is available for manual follow-up
 	case ERROR = 'ERROR';
+
+	// Chorus Pro's answer could not be determined (e.g. the connection dropped after the request was sent): unlike ERROR, the invoice may actually have been received and processed by Chorus Pro, so it must not be resubmitted blindly; manual verification in Chorus Pro is required
+	case UNKNOWN = 'UNKNOWN';
 }

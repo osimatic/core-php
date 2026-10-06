@@ -11,9 +11,9 @@ enum ChorusProSubmissionMode: string
 	// Invoice fields sent as plain structured JSON, no file at all
 	case SAISIE_API = 'SAISIE_API';
 
-	// Structured CII XML flux, no PDF
-	case EDI_XML_STRUCT = 'EDI_XML_STRUCT';
-
 	// Factur-X hybrid PDF/A-3 file, base64-encoded
 	case DEPOT_PDF_API = 'DEPOT_PDF_API';
+
+	// Same as DEPOT_PDF_API, with the PDF additionally bearing a PAdES electronic signature
+	case DEPOT_PDF_SIGNE_API = 'DEPOT_PDF_SIGNE_API';
 }

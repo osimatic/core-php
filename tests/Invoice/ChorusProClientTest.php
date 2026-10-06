@@ -188,7 +188,7 @@ final class ChorusProClientTest extends TestCase
 		);
 		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientMissingRef->submit($invoiceMissingRef)->status);
 
-		// Authentication failure (no access_token in the OAuth response): ERROR. Authentication is retried independently for the structure resolution call and the actual submission call, so it is attempted twice (each failing the same way) since a failed attempt is not cached.
+		// Authentication failure (no access_token in the OAuth response): ERROR, failing fast on the first authentication attempt (the structure resolution call, which runs before the actual submission call) instead of retrying.
 		$invoiceAuthFailure = $this->createInvoice($this->createChorusProRecipientBuyer());
 		$clientAuthFailure = new ChorusProClient(
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
@@ -199,28 +199,9 @@ final class ChorusProClientTest extends TestCase
 			enabled: true,
 			requestExecutor: $this->createRequestExecutor([
 				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
-				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
 			]),
 		);
 		$this->assertSame(ChorusProSubmissionStatus::ERROR, $clientAuthFailure->submit($invoiceAuthFailure)->status);
-
-		// EDI_XML_STRUCT happy path: builds the CII XML itself (real CiiXmlGenerator), submits it as a flux
-		$invoiceEdiXml = $this->createInvoice($this->createChorusProRecipientBuyer());
-		$clientEdiXml = new ChorusProClient(
-			submissionMode: ChorusProSubmissionMode::EDI_XML_STRUCT,
-			clientId: 'id',
-			clientSecret: 'secret',
-			accountLogin: 'account-login',
-			accountPassword: 'account-password',
-			enabled: true,
-			requestExecutor: $this->createRequestExecutor([
-				$this->createOauthTokenResponse(),
-				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '67890'])),
-			]),
-		);
-		$result = $clientEdiXml->submit($invoiceEdiXml);
-		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
-		$this->assertSame('67890', $result->submissionId);
 
 		// DEPOT_PDF_API: missing invoice HTML -> cannot render the PDF, ERROR, no HTTP call
 		$invoiceMissingHtml = $this->createInvoice($this->createChorusProRecipientBuyer());
@@ -273,7 +254,7 @@ final class ChorusProClientTest extends TestCase
 		$this->assertStringContainsString('HTTP 400', $result->error);
 		$this->assertStringContainsString('Invalid field', $result->error);
 
-		// Successful HTTP status but no invoice identifier in the response: ERROR, since the submission could not be followed up
+		// Successful HTTP status but no invoice identifier in the response: UNKNOWN (ambiguous, the invoice may have been received), not ERROR
 		$clientNoId = new ChorusProClient(
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
@@ -288,7 +269,7 @@ final class ChorusProClientTest extends TestCase
 			]),
 		);
 		$result = $clientNoId->submit($this->createInvoice($this->createChorusProRecipientBuyer()));
-		$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status);
+		$this->assertSame(ChorusProSubmissionStatus::UNKNOWN, $result->status);
 		$this->assertStringContainsString('no invoice identifier', $result->error);
 
 		// Validation, applied whatever the submission mode: each invalid invoice is rejected without any HTTP call
@@ -325,9 +306,12 @@ final class ChorusProClientTest extends TestCase
 			$httpClient = $this->createMock(ClientInterface::class);
 			$httpClient->method('sendRequest')->willReturnCallback(function ($request) use (&$requestBodies) {
 				$requestBodies[] = (string) $request->getBody();
-				return str_contains((string) $request->getUri(), 'soumettre')
-					? new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '1']))
-					: $this->createOauthTokenResponse();
+				$uri = (string) $request->getUri();
+				return match (true) {
+					str_contains($uri, 'soumettre') => new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '1'])),
+					str_contains($uri, 'rechercher') => new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
+					default => $this->createOauthTokenResponse(),
+				};
 			});
 			$requestBodies = [];
 			$clientMultiRate = new ChorusProClient(
