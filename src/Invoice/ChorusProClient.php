@@ -70,10 +70,10 @@ class ChorusProClient
 
 	/**
 	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow.
-	 * If $invoice implements ChorusProInvoiceInterface, an invoice already SUBMITTED or ACCEPTED is not resubmitted (its previous outcome is returned unchanged), and the outcome of this call is persisted onto the invoice automatically; otherwise, persisting the returned result is up to the caller.
+	 * If $invoice implements ChorusProInvoiceInterface, an invoice already SUBMITTED, ACCEPTED or UNKNOWN is not resubmitted (its previous outcome is returned unchanged), and the outcome of this call is persisted onto the invoice automatically; otherwise, persisting the returned result is up to the caller.
 	 * @param InvoiceInterface $invoice
-	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required only for the DEPOT_PDF_API mode
-	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE (not a Chorus Pro recipient), DISABLED (feature flag off), SUBMITTED (with the Chorus Pro identifier) or ERROR (with the error message)
+	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required only for the DEPOT_PDF_API/DEPOT_PDF_SIGNE_API modes
+	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE (not a Chorus Pro recipient), DISABLED (feature flag off), SUBMITTED (with the Chorus Pro identifier), UNKNOWN (ambiguous outcome, do not resubmit) or ERROR (with the error message)
 	 */
 	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null): ChorusProSubmissionResult
 	{
@@ -163,7 +163,7 @@ class ChorusProClient
 		try {
 			return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/consulter/historique', ['idFacture' => $submissionId]);
 		}
-		catch (\RuntimeException $e) {
+		catch (\Throwable $e) {
 			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
 			return null;
 		}
