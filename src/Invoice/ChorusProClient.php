@@ -68,16 +68,44 @@ class ChorusProClient
 	// ========== Submission ==========
 
 	/**
-	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow. Persisting the result is up to the caller.
+	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow.
+	 * If $invoice implements ChorusProInvoiceInterface, an invoice already SUBMITTED or ACCEPTED is not resubmitted (its previous outcome is returned unchanged), and the outcome of this call is persisted onto the invoice automatically; otherwise, persisting the returned result is up to the caller.
 	 * @param InvoiceInterface $invoice
 	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required only for the DEPOT_PDF_API mode
 	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE (not a Chorus Pro recipient), DISABLED (feature flag off), SUBMITTED (with the Chorus Pro identifier) or ERROR (with the error message)
 	 */
 	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null): ChorusProSubmissionResult
 	{
+		$result = $this->doSubmit($invoice, $invoiceHtml);
+
+		if ($invoice instanceof ChorusProInvoiceInterface) {
+			$invoice->setChorusProSubmissionStatus($result->status);
+			$invoice->setChorusProSubmissionId($result->submissionId);
+			$invoice->setChorusProSubmissionDateTime($result->dateTime);
+			$invoice->setChorusProSubmissionError($result->error);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param InvoiceInterface $invoice
+	 * @param string|null $invoiceHtml
+	 * @return ChorusProSubmissionResult
+	 */
+	private function doSubmit(InvoiceInterface $invoice, ?string $invoiceHtml): ChorusProSubmissionResult
+	{
 		$buyer = $invoice->getBuyer();
 		if (!$buyer instanceof ChorusProRecipientInterface || !$buyer->isChorusProRecipient()) {
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::NOT_APPLICABLE);
+		}
+
+		if ($invoice instanceof ChorusProInvoiceInterface && \in_array($invoice->getChorusProSubmissionStatus(), [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::ACCEPTED], true)) {
+			return new ChorusProSubmissionResult(
+				$invoice->getChorusProSubmissionStatus(),
+				submissionId: $invoice->getChorusProSubmissionId(),
+				dateTime: $invoice->getChorusProSubmissionDateTime() ?? new \DateTime(),
+			);
 		}
 
 		if (!$this->enabled) {
