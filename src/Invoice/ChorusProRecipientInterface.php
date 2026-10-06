@@ -14,14 +14,14 @@ interface ChorusProRecipientInterface
 	public function isChorusProRecipient(): bool;
 
 	/**
-	 * Gets the Chorus Pro service code, required for the TYPE_2 invoicing category.
+	 * Gets the Chorus Pro service code, required when the invoice reference requirement is SERVICE_CODE_REQUIRED.
 	 * @return string|null
 	 */
 	public function getChorusProServiceCode(): ?string;
 
 	/**
-	 * Gets the Chorus Pro invoicing structure category, which determines which references are mandatory.
-	 * @return ChorusProInvoiceCategory|null
+	 * Gets the reference(s) required on invoices submitted to Chorus Pro for this recipient.
+	 * @return ChorusProInvoiceReferenceRequirement|null
 	 */
-	public function getChorusProInvoiceCategory(): ?ChorusProInvoiceCategory;
+	public function getChorusProInvoiceReferenceRequirement(): ?ChorusProInvoiceReferenceRequirement;
 }

@@ -6,7 +6,7 @@ namespace Tests\Invoice;
 
 use GuzzleHttp\Psr7\Response;
 use Osimatic\Invoice\ChorusProClient;
-use Osimatic\Invoice\ChorusProInvoiceCategory;
+use Osimatic\Invoice\ChorusProInvoiceReferenceRequirement;
 use Osimatic\Invoice\ChorusProRecipientInterface;
 use Osimatic\Invoice\ChorusProSubmissionMode;
 use Osimatic\Invoice\ChorusProSubmissionStatus;
@@ -53,11 +53,11 @@ final class ChorusProClientTest extends TestCase
 	/**
 	 * @return OrganizationInterface&ChorusProRecipientInterface
 	 */
-	private function createChorusProRecipientBuyer(?ChorusProInvoiceCategory $category = ChorusProInvoiceCategory::TYPE_3, bool $isRecipient = true)
+	private function createChorusProRecipientBuyer(?ChorusProInvoiceReferenceRequirement $referenceRequirement = ChorusProInvoiceReferenceRequirement::NONE, bool $isRecipient = true)
 	{
 		$buyer = $this->createMockForIntersectionOfInterfaces([OrganizationInterface::class, ChorusProRecipientInterface::class]);
 		$buyer->method('isChorusProRecipient')->willReturn($isRecipient);
-		$buyer->method('getChorusProInvoiceCategory')->willReturn($category);
+		$buyer->method('getChorusProInvoiceReferenceRequirement')->willReturn($referenceRequirement);
 		$buyer->method('getChorusProServiceCode')->willReturn(null);
 		$buyer->method('getRegistrationNumber')->willReturn('98765432100034');
 		$buyer->method('getName')->willReturn('Mairie de Test');
@@ -175,8 +175,8 @@ final class ChorusProClientTest extends TestCase
 		$this->assertNull($result->submissionId);
 		$this->assertNotEmpty($result->error);
 
-		// SAISIE_API: TYPE_1 category requires a customer order reference; missing here -> ERROR, no HTTP call
-		$invoiceMissingRef = $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_1), customerOrderReference: null);
+		// SAISIE_API: ENGAGEMENT_REQUIRED requires a customer order reference; missing here -> ERROR, no HTTP call
+		$invoiceMissingRef = $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceReferenceRequirement::ENGAGEMENT_REQUIRED), customerOrderReference: null);
 		$clientMissingRef = new ChorusProClient(
 			submissionMode: ChorusProSubmissionMode::SAISIE_API,
 			clientId: 'id',
@@ -300,7 +300,7 @@ final class ChorusProClientTest extends TestCase
 			'product label' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: [$this->createProduct('', 100.0, 1.0, 20.0)]),
 			'product VAT rate' => $this->createInvoice($this->createChorusProRecipientBuyer(), products: [$this->createProduct('Abonnement mensuel', 100.0, 1.0, -5.0)]),
 			'invoicing category' => $this->createInvoice($this->createChorusProRecipientBuyer(null)),
-			'TYPE_2 service code' => $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceCategory::TYPE_2)),
+			'SERVICE_CODE_REQUIRED service code' => $this->createInvoice($this->createChorusProRecipientBuyer(ChorusProInvoiceReferenceRequirement::SERVICE_CODE_REQUIRED)),
 			'quotation' => $this->createInvoice($this->createChorusProRecipientBuyer(), InvoiceType::QUOTATION),
 		];
 		foreach (ChorusProSubmissionMode::cases() as $mode) {

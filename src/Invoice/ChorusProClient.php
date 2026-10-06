@@ -13,7 +13,7 @@ use Psr\Log\NullLogger;
 /**
  * Client for the Chorus Pro API (French public administration e-invoicing platform): authenticates against PISTE and submits invoices via the "soumettreFacture" endpoint, in any of its 3 submission modes.
  * Two distinct sets of credentials are required: the PISTE OAuth2 client ID/secret (identifies the application) and a Chorus Pro account login/password (identifies the Chorus Pro user), sent on every call as the base64-encoded "cpro-account" header. The Chorus Pro account is created separately on the Chorus Pro portal, not on PISTE.
- * Endpoint paths and SAISIE_API payload field names are confirmed against the official PISTE API catalog Swagger schema ("API de Test pour Factures"), except the top-level "idUtilisateurCourant" field (flagged with a TODO in buildSaisieApiPayload()), whose source (a Chorus Pro internal user id) is not yet identified.
+ * Endpoint paths and SAISIE_API payload field names are confirmed against the official PISTE API catalog Swagger schema ("API de Test pour Factures")
  * @link https://piste.gouv.fr PISTE developer portal
  * @link https://chorus-pro.gouv.fr/qualif Chorus Pro qualification (sandbox) account creation
  * @link https://communaute.chorus-pro.gouv.fr/submit-invoice/?lang=en Chorus Pro "Submit invoice" documentation
@@ -272,14 +272,14 @@ class ChorusProClient
 		if (empty($buyer->getRegistrationNumber())) {
 			return 'the recipient registration number (SIRET) is missing.';
 		}
-		if (null === ($category = $buyer->getChorusProInvoiceCategory())) {
-			return 'the recipient\'s invoicing category (ChorusProInvoiceCategory) is missing.';
+		if (null === ($referenceRequirement = $buyer->getChorusProInvoiceReferenceRequirement())) {
+			return 'the recipient\'s invoice reference requirement (ChorusProInvoiceReferenceRequirement) is missing.';
 		}
-		if (ChorusProInvoiceCategory::TYPE_1 === $category && empty($invoice->getCustomerOrderReference())) {
-			return 'invoicing category TYPE_1 requires a customer order reference (engagement number), none was provided.';
+		if (ChorusProInvoiceReferenceRequirement::ENGAGEMENT_REQUIRED === $referenceRequirement && empty($invoice->getCustomerOrderReference())) {
+			return 'the ENGAGEMENT_REQUIRED reference requirement requires a customer order reference (engagement number), none was provided.';
 		}
-		if (ChorusProInvoiceCategory::TYPE_2 === $category && empty($buyer->getChorusProServiceCode())) {
-			return 'invoicing category TYPE_2 requires a service code, none was provided.';
+		if (ChorusProInvoiceReferenceRequirement::SERVICE_CODE_REQUIRED === $referenceRequirement && empty($buyer->getChorusProServiceCode())) {
+			return 'the SERVICE_CODE_REQUIRED reference requirement requires a service code, none was provided.';
 		}
 
 		return null;
@@ -320,7 +320,6 @@ class ChorusProClient
 				'numeroBonCommande' => $invoice->getCustomerOrderReference(),
 			],
 			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
-			// "idUtilisateurCourant" (top-level, documented as required) is not set: its source (a Chorus Pro internal user id, distinct from the cpro-account login) is not yet identified.
 			'lignePoste' => array_map(static fn (InvoiceProductInterface $product, int $index) => [
 				'lignePosteNumero' => $index + 1,
 				'lignePosteDenomination' => $product->getLabel(),
