@@ -49,7 +49,7 @@ class ChorusProClient
 	// ========== Constructor ==========
 
 	public function __construct(
-		private readonly ChorusProSubmissionMode $submissionMode,
+		private ChorusProSubmissionMode $submissionMode,
 		private readonly string $clientId,
 		private readonly string $clientSecret,
 		private readonly string $accountLogin,
@@ -65,6 +65,15 @@ class ChorusProClient
 		private readonly ?int $supplierStructureId = null, // the Chorus Pro internal structure id ("idStructureCPP") of the supplier (our own SIRET); if null, resolveStructureId() resolves it via the API instead
 		private readonly bool $sandbox = true, // true to target the PISTE sandbox (default), false for production
 	) {}
+
+	/**
+	 * Overrides the submission mode configured at construction, e.g. to reuse an injected instance under a different mode without declaring a second service.
+	 * @param ChorusProSubmissionMode $submissionMode
+	 */
+	public function setSubmissionMode(ChorusProSubmissionMode $submissionMode): void
+	{
+		$this->submissionMode = $submissionMode;
+	}
 
 	// ========== Submission ==========
 
