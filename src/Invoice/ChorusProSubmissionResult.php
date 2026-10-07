@@ -21,10 +21,10 @@ final readonly class ChorusProSubmissionResult
 	) {}
 
 	/**
-	 * @return bool True if the invoice was successfully submitted to Chorus Pro
+	 * @return bool True if the invoice was successfully submitted or deposited to Chorus Pro (SUBMITTED or FLUX_SUBMITTED)
 	 */
 	public function isSubmitted(): bool
 	{
-		return ChorusProSubmissionStatus::SUBMITTED === $this->status;
+		return in_array($this->status, [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::FLUX_SUBMITTED], true);
 	}
 }

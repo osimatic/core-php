@@ -12,7 +12,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Client for the Chorus Pro API (French public administration e-invoicing platform): authenticates against PISTE and submits invoices via the "soumettreFacture" endpoint, in any of its 3 submission modes.
+ * Client for the Chorus Pro API (French public administration e-invoicing platform): authenticates against PISTE and submits invoices either via submit() ("soumettreFacture", in any of its submission modes) or via depositFlux() ("deposerFluxFacture", for a self-contained Factur-X file, synced separately).
  * Two distinct sets of credentials are required: the PISTE OAuth2 client ID/secret (identifies the application) and a Chorus Pro account login/password (identifies the Chorus Pro user), sent on every call as the base64-encoded "cpro-account" header. The Chorus Pro account is created separately on the Chorus Pro portal, not on PISTE.
  * Endpoint paths and SAISIE_API payload field names are confirmed against the official PISTE API catalog Swagger schema ("API de Test pour Factures")
  * @link https://piste.gouv.fr PISTE developer portal
@@ -28,15 +28,15 @@ class ChorusProClient
 	public const string SANDBOX_OAUTH_URI = 'https://sandbox-oauth.piste.gouv.fr/api/oauth/token';
 	public const string PRODUCTION_OAUTH_URI = 'https://oauth.piste.gouv.fr/api/oauth/token';
 
-	// Chorus Pro API domain, shared by all PISTE "cpro" products (Factures, Structures, etc.). The full route of each product, e.g. "cpro/factures/v1/soumettre", is passed to callApi().
+	// Chorus Pro API domain, shared by all PISTE "cpro" products (Factures, Structures, Transverses, etc.). The full route of each product, e.g. "cpro/factures/v1/soumettre", is passed to callApi().
 	public const string SANDBOX_API_BASE_URI = 'https://sandbox-api.piste.gouv.fr';
 	public const string PRODUCTION_API_BASE_URI = 'https://api.piste.gouv.fr';
 
-	// Standard supplier invoice framework, as opposed to e.g. a subcontractor invoice
-	private const string DEFAULT_INVOICING_FRAMEWORK_CODE = 'A1_FACTURE_FOURNISSEUR';
-
 	// UN/CEFACT Recommendation 20 generic "unit" code, used as a default since InvoiceProductInterface does not expose a unit of measure
 	private const string DEFAULT_UNIT_CODE = 'C62';
+
+	// "syntaxeFlux" code for a Factur-X (CII) flux, used by depositFlux() via "deposerFluxFacture"
+	private const string FACTURX_FLUX_SYNTAX = 'IN_DP_E2_CII_FACTURX';
 
 	// ========== Properties ==========
 
@@ -49,7 +49,7 @@ class ChorusProClient
 	// ========== Constructor ==========
 
 	public function __construct(
-		private ChorusProSubmissionMode $submissionMode,
+		private readonly ChorusProSubmissionMode $submissionMode,
 		private readonly string $clientId,
 		private readonly string $clientSecret,
 		private readonly string $accountLogin,
@@ -66,52 +66,101 @@ class ChorusProClient
 		private readonly bool $sandbox = true, // true to target the PISTE sandbox (default), false for production
 	) {}
 
-	/**
-	 * Overrides the submission mode configured at construction, e.g. to reuse an injected instance under a different mode without declaring a second service.
-	 * @param ChorusProSubmissionMode $submissionMode
-	 */
-	public function setSubmissionMode(ChorusProSubmissionMode $submissionMode): void
-	{
-		$this->submissionMode = $submissionMode;
-	}
-
 	// ========== Submission ==========
 
 	/**
-	 * Submits an invoice to Chorus Pro, using the configured submission mode. Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow.
+	 * Submits an invoice to Chorus Pro via "soumettreFacture". Never throws: any failure is logged and reported in the returned result, so a Chorus Pro failure never blocks the normal invoicing flow.
 	 * If $invoice implements ChorusProInvoiceInterface, an invoice already SUBMITTED, ACCEPTED or UNKNOWN is not resubmitted (its previous outcome is returned unchanged), and the outcome of this call is persisted onto the invoice automatically; otherwise, persisting the returned result is up to the caller.
 	 * @param InvoiceInterface $invoice
-	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required only for the DEPOT_PDF_API/DEPOT_PDF_SIGNE_API modes
+	 * @param string|null $invoiceHtml The rendered HTML of the invoice, required for DEPOT_PDF_API/DEPOT_PDF_SIGNE_API
+	 * @param ChorusProInvoicingFramework $invoicingFramework The invoicing framework ("cadreDeFacturation"), e.g. a subcontractor or co-contractor invoice instead of a standard supplier invoice; a property of this specific invoice, not of the client
+	 * @param ChorusProSubmissionMode|null $submissionMode Overrides the mode configured at construction for this call only; the client itself stays immutable
 	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE (not a Chorus Pro recipient), DISABLED (feature flag off), SUBMITTED (with the Chorus Pro identifier), UNKNOWN (ambiguous outcome, do not resubmit) or ERROR (with the error message)
 	 */
-	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null): ChorusProSubmissionResult
+	public function submit(InvoiceInterface $invoice, ?string $invoiceHtml = null, ChorusProInvoicingFramework $invoicingFramework = ChorusProInvoicingFramework::SUPPLIER_INVOICE, ?ChorusProSubmissionMode $submissionMode = null): ChorusProSubmissionResult
 	{
-		$result = $this->doSubmit($invoice, $invoiceHtml);
+		$result = $this->doSubmit($invoice, $invoiceHtml, $invoicingFramework, mode: $submissionMode ?? $this->submissionMode);
+		return $this->persist($invoice, $result);
+	}
 
-		if ($invoice instanceof ChorusProInvoiceInterface) {
-			$invoice->setChorusProSubmissionStatus($result->status);
-			$invoice->setChorusProSubmissionId($result->submissionId);
-			$invoice->setChorusProSubmissionDateTime($result->dateTime);
-			$invoice->setChorusProSubmissionError($result->error);
+	/**
+	 * Submits an invoice to Chorus Pro as a self-contained Factur-X file, via "deposerFluxFacture" (endpoint "/v1/deposer/flux"), a separate mechanism from submit()/"soumettreFacture" entirely (no "modeDepot", own response shape, returned status is FLUX_SUBMITTED rather than SUBMITTED since the flux is only processed asynchronously by Chorus Pro).
+	 * @param InvoiceInterface $invoice
+	 * @param string|null $invoiceHtml The rendered HTML of the invoice, used to render the PDF
+	 * @param bool $signed Whether to sign the Factur-X file (via the configured PDFSignerInterface) before depositing it; not inferred from whether a signer happens to be configured
+	 * @return ChorusProSubmissionResult The outcome: NOT_APPLICABLE, DISABLED, FLUX_SUBMITTED (with the Chorus Pro flux number), UNKNOWN or ERROR
+	 */
+	public function depositFlux(InvoiceInterface $invoice, ?string $invoiceHtml = null, bool $signed = false): ChorusProSubmissionResult
+	{
+		$result = $this->doSubmit($invoice, $invoiceHtml, ChorusProInvoicingFramework::SUPPLIER_INVOICE, asFlux: true, signed: $signed);
+		return $this->persist($invoice, $result);
+	}
+
+	// ========== Get status ==========
+
+	/**
+	 * Gets the status of a previously submitted invoice, via the "consulterHistoriqueFacture" method (endpoint "/v1/consulter/historique"), which reports the invoice's current status along with its event history.
+	 * Only applicable to invoices submitted via submit() ("soumettreFacture"): an invoice deposited via depositFlux() ("deposerFluxFacture") is tracked separately (flux follow-up, not yet implemented here) and its "numeroFluxDepot" is not accepted by this endpoint.
+	 * All Chorus Pro "factures" API endpoints use POST, including this consultation one (confirmed on the official PISTE API catalog).
+	 * @param string $submissionId
+	 * @return array|null
+	 */
+	public function getInvoiceStatus(string $submissionId): ?array
+	{
+		try {
+			return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/consulter/historique', ['idFacture' => $submissionId]);
+		}
+		catch (\Throwable $e) {
+			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
+			return null;
+		}
+	}
+
+	// ========== Upload file ==========
+
+	/**
+	 * Uploads a PDF file to Chorus Pro via "ajouterFichierDansSysteme" (endpoint "/v1/ajouter/fichier" of the "Transverses" API), returning the resulting attachment id ("pieceJointeId") to reference in "soumettreFacture" via "pieceJointePrincipale".
+	 * @param string $fileName
+	 * @param string $fileContent
+	 * @return int
+	 * @throws \RuntimeException If the upload fails or the response contains no "pieceJointeId"
+	 */
+	public function uploadFile(string $fileName, string $fileContent): int
+	{
+		$response = $this->callApi(HTTPMethod::POST, 'cpro/transverses/v1/ajouter/fichier', [
+			'pieceJointeFichier' => base64_encode($fileContent),
+			'pieceJointeNom' => $fileName,
+			'pieceJointeTypeMime' => 'application/pdf',
+			'pieceJointeExtension' => 'pdf',
+		]);
+
+		if (null === $response || 0 !== ($response['codeRetour'] ?? 0) || !isset($response['pieceJointeId'])) {
+			throw new \RuntimeException('Unable to upload the file to Chorus Pro'.(isset($response['libelle']) ? ': '.$response['libelle'] : '.'));
 		}
 
-		return $result;
+		return (int) $response['pieceJointeId'];
 	}
+
+	// ========== Submission implementation ==========
 
 	/**
 	 * @param InvoiceInterface $invoice
 	 * @param string|null $invoiceHtml
+	 * @param ChorusProInvoicingFramework $invoicingFramework Ignored when $asFlux is true, since "deposerFluxFacture" has no "cadreDeFacturation" field
+	 * @param ChorusProSubmissionMode|null $mode
+	 * @param bool $asFlux
+	 * @param bool $signed
 	 * @return ChorusProSubmissionResult
 	 */
-	private function doSubmit(InvoiceInterface $invoice, ?string $invoiceHtml): ChorusProSubmissionResult
+	private function doSubmit(InvoiceInterface $invoice, ?string $invoiceHtml, ChorusProInvoicingFramework $invoicingFramework, ?ChorusProSubmissionMode $mode=null, bool $asFlux=false, bool $signed=false): ChorusProSubmissionResult
 	{
 		$buyer = $invoice->getBuyer();
 		if (!$buyer instanceof ChorusProRecipientInterface || !$buyer->isChorusProRecipient()) {
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::NOT_APPLICABLE);
 		}
 
-		// SUBMITTED/ACCEPTED: already successfully submitted, nothing to do. UNKNOWN: Chorus Pro's answer could not be determined, so the invoice may already have been received — must not be resubmitted blindly either, pending manual verification.
-		if ($invoice instanceof ChorusProInvoiceInterface && \in_array($invoice->getChorusProSubmissionStatus(), [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::ACCEPTED, ChorusProSubmissionStatus::UNKNOWN], true)) {
+		// SUBMITTED/FLUX_SUBMITTED/ACCEPTED: already successfully submitted, nothing to do. UNKNOWN: Chorus Pro's answer could not be determined, so the invoice may already have been received — must not be resubmitted blindly either, pending manual verification.
+		if ($invoice instanceof ChorusProInvoiceInterface && in_array($invoice->getChorusProSubmissionStatus(), [ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::FLUX_SUBMITTED, ChorusProSubmissionStatus::ACCEPTED, ChorusProSubmissionStatus::UNKNOWN], true)) {
 			return new ChorusProSubmissionResult(
 				$invoice->getChorusProSubmissionStatus(),
 				submissionId: $invoice->getChorusProSubmissionId(),
@@ -130,11 +179,16 @@ class ChorusProClient
 		}
 
 		try {
-			$response = match ($this->submissionMode) {
-				ChorusProSubmissionMode::SAISIE_API => $this->submitViaSaisieApi($invoice),
-				ChorusProSubmissionMode::DEPOT_PDF_API => $this->submitViaPdfApi($invoice, $invoiceHtml, false),
-				ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API => $this->submitViaPdfApi($invoice, $invoiceHtml, true),
-			};
+			if ($asFlux) {
+				$response = $this->submitViaFacturXFlux($invoice, $invoiceHtml, $signed);
+			}
+			else {
+				$response = match ($mode) {
+					ChorusProSubmissionMode::SAISIE_API => $this->submitViaSaisieApi($invoice, $invoicingFramework),
+					ChorusProSubmissionMode::DEPOT_PDF_API => $this->submitViaPdfApi($invoice, $invoiceHtml, false, $invoicingFramework),
+					ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API => $this->submitViaPdfApi($invoice, $invoiceHtml, true, $invoicingFramework),
+				};
+			}
 		}
 		catch (\Throwable $e) {
 			$this->logger->error('Chorus Pro submission failed unexpectedly: '.$e->getMessage(), ['exception' => $e]);
@@ -146,57 +200,109 @@ class ChorusProClient
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::UNKNOWN, error: 'Chorus Pro submission returned no response.');
 		}
 
+		// "deposerFluxFacture" (asFlux) has its own response shape ("numeroFluxDepot" instead of "identifiantFactureCPP") and success means the flux was deposited, not that a Chorus Pro invoice exists yet (FLUX_SUBMITTED, not SUBMITTED).
+		$identifierField = $asFlux ? 'numeroFluxDepot' : 'identifiantFactureCPP';
+		$successStatus = $asFlux ? ChorusProSubmissionStatus::FLUX_SUBMITTED : ChorusProSubmissionStatus::SUBMITTED;
+
 		// A 2xx HTTP response does not necessarily mean success: Chorus Pro reports business errors via "codeRetour" inside an otherwise-2xx response. This is a definitive rejection, not ambiguous, hence ERROR.
 		if (0 !== ($response['codeRetour'] ?? 0)) {
 			$this->logger->error('Chorus Pro submission rejected: '.mb_substr(json_encode($response), 0, 500));
 			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::ERROR, error: 'Chorus Pro rejected the submission (codeRetour '.$response['codeRetour'].'): '.($response['libelle'] ?? ''));
 		}
 
-		// A 2xx response was received (the invoice was processed) but without an identifier, the submission cannot be followed up: genuinely UNKNOWN rather than a definitive ERROR, to avoid blindly resubmitting (duplicate).
-		if (null === ($submissionId = $response['identifiantFactureCPP'] ?? null)) {
-			$this->logger->error('Chorus Pro response contains no invoice identifier: '.mb_substr(json_encode($response), 0, 500));
-			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::UNKNOWN, error: 'Chorus Pro response contains no invoice identifier. The invoice may have been received: check in Chorus Pro before submitting it again.');
+		// An identifier is expected under $identifierField; its absence is ambiguous (the invoice may have been received), hence UNKNOWN rather than ERROR, same as the absence of any response at all.
+		if (null === ($submissionId = $response[$identifierField] ?? null)) {
+			$this->logger->error('Chorus Pro response contains no "'.$identifierField.'": '.mb_substr(json_encode($response), 0, 500));
+			return new ChorusProSubmissionResult(ChorusProSubmissionStatus::UNKNOWN, error: 'Chorus Pro response contains no "'.$identifierField.'". The invoice may have been received: check in Chorus Pro before submitting it again.');
 		}
 
-		return new ChorusProSubmissionResult(ChorusProSubmissionStatus::SUBMITTED, submissionId: (string) $submissionId);
+		return new ChorusProSubmissionResult($successStatus, submissionId: (string) $submissionId);
 	}
 
 	/**
-	 * Gets the status of a previously submitted invoice, via the "consulterHistoriqueFacture" method (endpoint "/v1/consulter/historique"), which reports the invoice's current status along with its event history.
-	 * All Chorus Pro "factures" API endpoints use POST, including this consultation one (confirmed on the official PISTE API catalog).
-	 * @param string $submissionId
-	 * @return array|null
+	 * Persists a submission result onto $invoice, if it implements ChorusProInvoiceInterface. Shared by submit() and depositFlux().
+	 * @param InvoiceInterface $invoice
+	 * @param ChorusProSubmissionResult $result
+	 * @return ChorusProSubmissionResult
 	 */
-	public function getInvoiceStatus(string $submissionId): ?array
+	private function persist(InvoiceInterface $invoice, ChorusProSubmissionResult $result): ChorusProSubmissionResult
 	{
-		try {
-			return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/consulter/historique', ['idFacture' => $submissionId]);
+		if ($invoice instanceof ChorusProInvoiceInterface) {
+			$invoice->setChorusProSubmissionStatus($result->status);
+			$invoice->setChorusProSubmissionId($result->submissionId);
+			$invoice->setChorusProSubmissionDateTime($result->dateTime);
+			$invoice->setChorusProSubmissionError($result->error);
 		}
-		catch (\Throwable $e) {
-			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
-			return null;
-		}
-	}
 
-	// ========== Submission modes ==========
+		return $result;
+	}
 
 	/**
 	 * @param InvoiceInterface $invoice
+	 * @param ChorusProInvoicingFramework $invoicingFramework
 	 * @return array|null
 	 */
-	private function submitViaSaisieApi(InvoiceInterface $invoice): ?array
+	private function submitViaSaisieApi(InvoiceInterface $invoice, ChorusProInvoicingFramework $invoicingFramework): ?array
 	{
-		return $this->callSoumettreFacture($this->buildSaisieApiPayload($invoice));
+		return $this->callSoumettreFacture([
+			...$this->buildInvoicePayload($invoice, $invoicingFramework),
+			'modeDepot' => ChorusProSubmissionMode::SAISIE_API->value,
+		]);
 	}
 
 	/**
-	 * Submits the invoice as a PDF file: DEPOT_PDF_API (Factur-X hybrid PDF/A-3) or, if $signed, DEPOT_PDF_SIGNE_API (same file, additionally signed via $pdfSigner). Signing is applied after the Factur-X XML is embedded, not before, since altering a signed PDF would invalidate its signature.
+	 * Submits the invoice as a PDF attachment: DEPOT_PDF_API (Factur-X hybrid PDF/A-3) or, if $signed, DEPOT_PDF_SIGNE_API (same file, additionally signed via $pdfSigner). The PDF is first uploaded via "ajouterFichierDansSysteme" (endpoint "/v1/ajouter/fichier" of the "Transverses" API, a separate PISTE product), then referenced in "soumettreFacture" via "pieceJointePrincipale".
+	 * Signing is applied after the Factur-X XML is embedded, not before, since altering a signed PDF would invalidate its signature.
+	 * @param InvoiceInterface $invoice
+	 * @param string|null $invoiceHtml
+	 * @param bool $signed
+	 * @param ChorusProInvoicingFramework $invoicingFramework
+	 * @return array|null
+	 */
+	private function submitViaPdfApi(InvoiceInterface $invoice, ?string $invoiceHtml, bool $signed, ChorusProInvoicingFramework $invoicingFramework): ?array
+	{
+		$fileContent = $this->generateFacturXFileContent($invoice, $invoiceHtml, $signed);
+		$pieceJointeId = $this->uploadFile($invoice->getInvoiceNumber(), $fileContent);
+
+		return $this->callSoumettreFacture([
+			...$this->buildInvoicePayload($invoice, $invoicingFramework),
+			'modeDepot' => ($signed ? ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API : ChorusProSubmissionMode::DEPOT_PDF_API)->value,
+			'pieceJointePrincipale' => [
+				[
+					'pieceJointePrincipaleDesignation' => 'Facture',
+					'pieceJointePrincipaleId' => $pieceJointeId,
+				],
+			],
+		]);
+	}
+
+	/**
+	 * Submits the invoice as a self-contained Factur-X file, via "deposerFluxFacture" (endpoint "/v1/deposer/flux"). Unlike the other modes, this does not call "soumettreFacture" at all: there is no "modeDepot", Chorus Pro extracts the structured invoice data from the XML embedded in the Factur-X file itself, the response has its own shape ("numeroFluxDepot"), and the flux is processed asynchronously.
 	 * @param InvoiceInterface $invoice
 	 * @param string|null $invoiceHtml
 	 * @param bool $signed
 	 * @return array|null
 	 */
-	private function submitViaPdfApi(InvoiceInterface $invoice, ?string $invoiceHtml, bool $signed): ?array
+	private function submitViaFacturXFlux(InvoiceInterface $invoice, ?string $invoiceHtml, bool $signed): ?array
+	{
+		$fileContent = $this->generateFacturXFileContent($invoice, $invoiceHtml, $signed);
+
+		return $this->callApi(HTTPMethod::POST, 'cpro/factures/v1/deposer/flux', [
+			'avecSignature' => $signed,
+			'fichierFlux' => base64_encode($fileContent),
+			'nomFichier' => ($invoice->getInvoiceNumber() ?: 'invoice').'.pdf',
+			'syntaxeFlux' => self::FACTURX_FLUX_SYNTAX,
+		]);
+	}
+
+	/**
+	 * Renders the invoice PDF, embeds the Factur-X CII XML, optionally signs it, and returns the resulting file's content. Shared by submitViaPdfApi() and submitViaFacturXFlux().
+	 * @param InvoiceInterface $invoice
+	 * @param string|null $invoiceHtml
+	 * @param bool $signed
+	 * @return string
+	 */
+	private function generateFacturXFileContent(InvoiceInterface $invoice, ?string $invoiceHtml, bool $signed): string
 	{
 		if (null === $invoiceHtml) {
 			throw new \RuntimeException('Chorus Pro PDF submission requires the invoice HTML to render the PDF.');
@@ -219,7 +325,7 @@ class ChorusProClient
 
 			if ($signed) {
 				if (null === $this->pdfSigner) {
-					throw new \RuntimeException('Chorus Pro DEPOT_PDF_SIGNE_API submission aborted: no PDF signer is configured.');
+					throw new \RuntimeException('Chorus Pro signed PDF submission aborted: no PDF signer is configured.');
 				}
 				$this->pdfSigner->sign($tmpFacturXPath, $tmpSignedPath);
 				$pdfPath = $tmpSignedPath;
@@ -229,21 +335,69 @@ class ChorusProClient
 				throw new \RuntimeException('Chorus Pro PDF submission aborted: unable to read the generated '.($signed ? 'signed ' : '').'file: '.$pdfPath);
 			}
 
-			return $this->callSoumettreFacture([
-				'modeDepot' => ($signed ? ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API : ChorusProSubmissionMode::DEPOT_PDF_API)->value,
-				'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
-				'dateFacture' => $invoice->getDate()->format('Y-m-d'),
-				'fichier' => [
-					'nomFichier' => ($invoice->getInvoiceNumber() ?: 'invoice').'.pdf',
-					'contenuFichier' => base64_encode($fileContent),
-				],
-			]);
+			return $fileContent;
 		}
 		finally {
 			@unlink($tmpPdfPath);
 			@unlink($tmpFacturXPath);
 			@unlink($tmpSignedPath);
 		}
+	}
+
+	/**
+	 * Builds the structured invoice data shared by every "soumettreFacture" submission mode: recipient, supplier, invoicing framework, references, product lines, VAT breakdown, totals. The invoice must have been validated beforehand (see getInvoiceValidationError()).
+	 * Each mode then adds its own "modeDepot" and, for PDF modes, "pieceJointePrincipale" (see submitViaSaisieApi() and submitViaPdfApi()).
+	 * @param InvoiceInterface $invoice
+	 * @param ChorusProInvoicingFramework $invoicingFramework
+	 * @return array
+	 */
+	private function buildInvoicePayload(InvoiceInterface $invoice, ChorusProInvoicingFramework $invoicingFramework): array
+	{
+		/** @var ChorusProRecipientInterface&OrganizationInterface $buyer */
+		$buyer = $invoice->getBuyer();
+
+		$vatBreakdown = VatBreakdown::fromInvoice($invoice);
+
+		return [
+			'dateFacture' => $invoice->getDate()->format('Y-m-d'),
+			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
+			'destinataire' => [
+				'codeDestinataire' => $buyer->getRegistrationNumber(),
+				'codeServiceExecutant' => $buyer->getChorusProServiceCode(),
+			],
+			'fournisseur' => [
+				'idFournisseur' => $this->resolveStructureId($invoice->getSeller()->getRegistrationNumber()),
+			],
+			'cadreDeFacturation' => [
+				'codeCadreFacturation' => $invoicingFramework->value,
+			],
+			'references' => [
+				'deviseFacture' => $invoice->getCurrency(),
+				'typeFacture' => 'FACTURE',
+				'typeTva' => $this->vatType->value,
+				'modePaiement' => $this->getPaymentModeCode($invoice->getPaymentMethod()),
+				'numeroBonCommande' => $invoice->getCustomerOrderReference(),
+			],
+			'lignePoste' => array_map(static fn (InvoiceProductInterface $product, int $index) => [
+				'lignePosteNumero' => $index + 1,
+				'lignePosteDenomination' => $product->getLabel(),
+				'lignePosteQuantite' => $product->getQuantity(),
+				'lignePosteUnite' => self::DEFAULT_UNIT_CODE,
+				'lignePosteMontantUnitaireHT' => $product->getUnitPrice(),
+				'lignePosteTauxTvaManuel' => $product->getVatRate(),
+			], $invoice->getProductsList(), array_keys($invoice->getProductsList())),
+			'ligneTva' => array_map(static fn (VatBreakdown $line) => [
+				'ligneTvaMontantBaseHtParTaux' => $line->baseExclTax,
+				'ligneTvaTauxManuel' => $line->rate,
+				'ligneTvaMontantTvaParTaux' => $line->vatAmount,
+			], $vatBreakdown),
+			'montantTotal' => [
+				'montantHtTotal' => $invoice->getTotalExclTax(),
+				'montantTVA' => $invoice->getTotalVat(),
+				'montantTtcTotal' => $invoice->getTotalInclTax(),
+				'montantAPayer' => $invoice->getTotalInclTax(),
+			],
+		];
 	}
 
 	// ========== Validation ==========
@@ -301,63 +455,6 @@ class ChorusProClient
 		}
 
 		return null;
-	}
-
-	// ========== SAISIE_API payload ==========
-
-	/**
-	 * Builds the structured JSON payload expected by Chorus Pro in SAISIE_API mode. The invoice must have been validated beforehand (see getInvoiceValidationError()).
-	 * @param InvoiceInterface $invoice
-	 * @return array
-	 */
-	private function buildSaisieApiPayload(InvoiceInterface $invoice): array
-	{
-		/** @var ChorusProRecipientInterface&OrganizationInterface $buyer */
-		$buyer = $invoice->getBuyer();
-
-		$vatBreakdown = VatBreakdown::fromInvoice($invoice);
-
-		return [
-			'modeDepot' => ChorusProSubmissionMode::SAISIE_API->value,
-			'dateFacture' => $invoice->getDate()->format('Y-m-d'),
-			'destinataire' => [
-				'codeDestinataire' => $buyer->getRegistrationNumber(),
-				'codeServiceExecutant' => $buyer->getChorusProServiceCode(),
-			],
-			'fournisseur' => [
-				'idFournisseur' => $this->resolveStructureId($invoice->getSeller()->getRegistrationNumber()),
-			],
-			'cadreDeFacturation' => [
-				'codeCadreFacturation' => self::DEFAULT_INVOICING_FRAMEWORK_CODE,
-			],
-			'references' => [
-				'deviseFacture' => $invoice->getCurrency(),
-				'typeFacture' => 'FACTURE',
-				'typeTva' => $this->vatType->value,
-				'modePaiement' => $this->getPaymentModeCode($invoice->getPaymentMethod()),
-				'numeroBonCommande' => $invoice->getCustomerOrderReference(),
-			],
-			'numeroFactureSaisi' => $invoice->getInvoiceNumber(),
-			'lignePoste' => array_map(static fn (InvoiceProductInterface $product, int $index) => [
-				'lignePosteNumero' => $index + 1,
-				'lignePosteDenomination' => $product->getLabel(),
-				'lignePosteQuantite' => $product->getQuantity(),
-				'lignePosteUnite' => self::DEFAULT_UNIT_CODE,
-				'lignePosteMontantUnitaireHT' => $product->getUnitPrice(),
-				'lignePosteTauxTvaManuel' => $product->getVatRate(),
-			], $invoice->getProductsList(), array_keys($invoice->getProductsList())),
-			'ligneTva' => array_map(static fn (VatBreakdown $line) => [
-				'ligneTvaMontantBaseHtParTaux' => $line->baseExclTax,
-				'ligneTvaTauxManuel' => $line->rate,
-				'ligneTvaMontantTvaParTaux' => $line->vatAmount,
-			], $vatBreakdown),
-			'montantTotal' => [
-				'montantHtTotal' => $invoice->getTotalExclTax(),
-				'montantTVA' => $invoice->getTotalVat(),
-				'montantTtcTotal' => $invoice->getTotalInclTax(),
-				'montantAPayer' => $invoice->getTotalInclTax(),
-			],
-		];
 	}
 
 	/**
