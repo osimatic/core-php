@@ -14,9 +14,12 @@ class PDFGenerator
 {
 	/**
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
+	 * @param string[] $allowedDirectories Directories from which Dompdf may load local files such as images (Dompdf "chroot" option). When empty, the filesystem root is used, which on Windows only covers the current drive and rejects UNC paths (e.g. \\server\share), so pass the directories explicitly in that case
+	 * @link https://github.com/dompdf/dompdf/wiki/Usage#chroot Dompdf chroot documentation
 	 */
 	public function __construct(
 		private LoggerInterface $logger = new NullLogger(),
+		private array $allowedDirectories = [],
 	) {}
 
 	/**
@@ -54,7 +57,7 @@ class PDFGenerator
 			$dompdf = new \Dompdf\Dompdf($options + [
 				'isRemoteEnabled' => true,
 				'isHtml5ParserEnabled' => true,
-				'chroot' => DIRECTORY_SEPARATOR,
+				'chroot' => !empty($this->allowedDirectories) ? $this->allowedDirectories : DIRECTORY_SEPARATOR,
 			]);
 			$dompdf->setPaper('a4', $orientation);
 			$dompdf->loadHtml($this->buildHtmlWithHeaderAndFooter($bodyHtml, $headerHtml, $footerHtml), 'UTF-8');
