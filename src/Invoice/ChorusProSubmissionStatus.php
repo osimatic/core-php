@@ -20,7 +20,7 @@ enum ChorusProSubmissionStatus: string
 	// The invoice was successfully sent to Chorus Pro ("soumettreFacture"), which returned an identifier ("identifiantFactureCPP"): a Chorus Pro invoice now exists
 	case SUBMITTED = 'SUBMITTED';
 
-	// The invoice (as a Factur-X file) was deposited via "deposerFluxFacture", which returned a flux number ("numeroFluxDepot"): unlike SUBMITTED, this does NOT mean a Chorus Pro invoice exists yet — the flux is processed asynchronously, its actual outcome is obtained separately (not yet implemented here)
+	// The invoice (as a Factur-X file) was deposited via "deposerFluxFacture", which returned a flux number ("numeroFluxDepot"): unlike SUBMITTED, this does NOT mean a Chorus Pro invoice exists yet — the flux is processed asynchronously, its actual outcome is obtained separately via ChorusProClient::getFluxStatus()
 	case FLUX_SUBMITTED = 'FLUX_SUBMITTED';
 
 	// The invoice was accepted by the recipient (status followed up via ChorusProClient::getInvoiceStatus())

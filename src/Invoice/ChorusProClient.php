@@ -100,7 +100,7 @@ class ChorusProClient
 
 	/**
 	 * Gets the status of a previously submitted invoice, via the "consulterHistoriqueFacture" method (endpoint "/v1/consulter/historique"), which reports the invoice's current status along with its event history.
-	 * Only applicable to invoices submitted via submit() ("soumettreFacture"): an invoice deposited via depositFlux() ("deposerFluxFacture") is tracked separately (flux follow-up, not yet implemented here) and its "numeroFluxDepot" is not accepted by this endpoint.
+	 * Only applicable to invoices submitted via submit() ("soumettreFacture"): an invoice deposited via depositFlux() ("deposerFluxFacture") is tracked separately, via getFluxStatus(), and its "numeroFluxDepot" is not accepted by this endpoint.
 	 * All Chorus Pro "factures" API endpoints use POST, including this consultation one (confirmed on the official PISTE API catalog).
 	 * @param string $submissionId
 	 * @return array|null
@@ -112,6 +112,26 @@ class ChorusProClient
 		}
 		catch (\Throwable $e) {
 			$this->logger->error('Chorus Pro status lookup failed: '.$e->getMessage(), ['exception' => $e]);
+			return null;
+		}
+	}
+
+	/**
+	 * Gets the integration status of a previously deposited flux, via the "consulterCRDetaille" method (endpoint "/v1/consulterCRDetaille" of the "Transverses" API), which reports whether Chorus Pro accepted the flux ("etatCourantDepotFlux") along with any technical or payment-request ("demande de paiement") errors found.
+	 * Only applicable to a flux deposited via depositFlux() ("deposerFluxFacture"): unlike submit(), a FLUX_SUBMITTED outcome is not final and must be followed up here to know whether Chorus Pro actually accepted it.
+	 * @param string $numeroFluxDepot The flux number ("numeroFluxDepot") returned by depositFlux()
+	 * @return array|null
+	 */
+	public function getFluxStatus(string $numeroFluxDepot): ?array
+	{
+		try {
+			return $this->callApi(HTTPMethod::POST, 'cpro/transverses/v1/consulterCRDetaille', [
+				'numeroFluxDepot' => $numeroFluxDepot,
+				'syntaxeFlux' => self::FACTURX_FLUX_SYNTAX,
+			]);
+		}
+		catch (\Throwable $e) {
+			$this->logger->error('Chorus Pro flux status lookup failed: '.$e->getMessage(), ['exception' => $e]);
 			return null;
 		}
 	}

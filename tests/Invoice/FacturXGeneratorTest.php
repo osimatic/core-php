@@ -38,7 +38,7 @@ final class FacturXGeneratorTest extends TestCase
 	private function createInvoice(): InvoiceInterface
 	{
 		$seller = $this->createMock(OrganizationInterface::class);
-		$seller->method('getName')->willReturn('MyTime SAS');
+		$seller->method('getName')->willReturn('Acme SAS');
 		$seller->method('getRegistrationNumber')->willReturn('12345678900012');
 
 		$buyer = $this->createMock(OrganizationInterface::class);

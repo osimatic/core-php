@@ -21,7 +21,7 @@ final class CiiXmlGeneratorTest extends TestCase
 	private function createInvoice(): InvoiceInterface
 	{
 		$seller = $this->createMock(OrganizationInterface::class);
-		$seller->method('getName')->willReturn('MyTime SAS');
+		$seller->method('getName')->willReturn('Acme SAS');
 		$seller->method('getRegistrationNumber')->willReturn('12345678900012');
 
 		$buyer = $this->createMock(OrganizationInterface::class);
@@ -65,7 +65,7 @@ final class CiiXmlGeneratorTest extends TestCase
 
 		$this->assertNotNull($xml);
 		$this->assertStringContainsString('INV-2026-001', $xml);
-		$this->assertStringContainsString('MyTime SAS', $xml);
+		$this->assertStringContainsString('Acme SAS', $xml);
 		$this->assertStringContainsString('Mairie de Test', $xml);
 		$this->assertStringContainsString('Abonnement mensuel', $xml);
 

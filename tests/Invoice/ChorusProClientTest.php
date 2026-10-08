@@ -19,6 +19,7 @@ use Osimatic\Invoice\VatCategory;
 use Osimatic\Bank\PaymentMethod;
 use Osimatic\Network\HTTPRequestExecutor;
 use Osimatic\Organization\OrganizationInterface;
+use Osimatic\Text\PDFSignerInterface;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
@@ -84,7 +85,7 @@ final class ChorusProClientTest extends TestCase
 	private function createInvoice(OrganizationInterface $buyer, InvoiceType $type = InvoiceType::INVOICE, ?string $customerOrderReference = 'PO-42', ?string $sellerRegistrationNumber = '12345678900012', string $invoiceNumber = 'INV-2026-001', ?array $products = null)
 	{
 		$seller = $this->createMock(OrganizationInterface::class);
-		$seller->method('getName')->willReturn('MyTime SAS');
+		$seller->method('getName')->willReturn('Acme SAS');
 		$seller->method('getRegistrationNumber')->willReturn($sellerRegistrationNumber);
 
 		$products ??= [$this->createProduct('Abonnement mensuel', 100.0, 1.0, 20.0)];
@@ -104,6 +105,51 @@ final class ChorusProClientTest extends TestCase
 		$invoice->method('getPaymentMethod')->willReturn(PaymentMethod::TRANSFER);
 
 		return $invoice;
+	}
+
+	/**
+	 * Like createInvoice(), but the mock also implements ChorusProInvoiceInterface, to assert on submit()/depositFlux()'s persist() behavior.
+	 * @return InvoiceInterface&ChorusProInvoiceInterface
+	 */
+	private function createChorusProInvoice(OrganizationInterface $buyer, ?ChorusProSubmissionStatus $chorusProSubmissionStatus = null, ?string $chorusProSubmissionId = null, ?string $chorusProSubmissionError = null, ?\DateTime $chorusProSubmissionDateTime = null, string $invoiceNumber = 'INV-2026-001')
+	{
+		$seller = $this->createMock(OrganizationInterface::class);
+		$seller->method('getName')->willReturn('Acme SAS');
+		$seller->method('getRegistrationNumber')->willReturn('12345678900012');
+
+		$invoice = $this->createMockForIntersectionOfInterfaces([InvoiceInterface::class, ChorusProInvoiceInterface::class]);
+		$invoice->method('getType')->willReturn(InvoiceType::INVOICE);
+		$invoice->method('getBuyer')->willReturn($buyer);
+		$invoice->method('getSeller')->willReturn($seller);
+		$invoice->method('getInvoiceNumber')->willReturn($invoiceNumber);
+		$invoice->method('getDate')->willReturn(new \DateTime('2026-09-01'));
+		$invoice->method('getCurrency')->willReturn('EUR');
+		$invoice->method('getCustomerOrderReference')->willReturn('PO-42');
+		$invoice->method('getProductsList')->willReturn([$this->createProduct('Abonnement', 100.0, 1.0, 20.0)]);
+		$invoice->method('getTotalExclTax')->willReturn(100.0);
+		$invoice->method('getTotalVat')->willReturn(20.0);
+		$invoice->method('getTotalInclTax')->willReturn(120.0);
+		$invoice->method('getPaymentMethod')->willReturn(PaymentMethod::TRANSFER);
+		$invoice->method('getChorusProSubmissionStatus')->willReturn($chorusProSubmissionStatus);
+		$invoice->method('getChorusProSubmissionId')->willReturn($chorusProSubmissionId);
+		$invoice->method('getChorusProSubmissionError')->willReturn($chorusProSubmissionError);
+		$invoice->method('getChorusProSubmissionDateTime')->willReturn($chorusProSubmissionDateTime);
+
+		return $invoice;
+	}
+
+	/**
+	 * A no-op PDFSignerInterface (just copies the file), to exercise the DEPOT_PDF_SIGNE_API / depositFlux(signed: true) paths without a real signing service.
+	 * @return PDFSignerInterface
+	 */
+	private function createFakePdfSigner(): PDFSignerInterface
+	{
+		return new class implements PDFSignerInterface {
+			public function sign(string $inputPath, string $outputPath): void
+			{
+				copy($inputPath, $outputPath);
+			}
+		};
 	}
 
 	/* ===================== submit() ===================== */
@@ -344,6 +390,227 @@ final class ChorusProClientTest extends TestCase
 		}
 	}
 
+	public function testSubmitPersistsResultOntoInvoice(): void
+	{
+		$buyer = $this->createChorusProRecipientBuyer();
+		$invoice = $this->createChorusProInvoice($buyer, invoiceNumber: 'INV-2026-003');
+		$invoice->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::SUBMITTED);
+		$invoice->expects($this->once())->method('setChorusProSubmissionId')->with('99999');
+		$invoice->expects($this->once())->method('setChorusProSubmissionDateTime');
+		$invoice->expects($this->once())->method('setChorusProSubmissionError')->with(null);
+
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '99999'])),
+			]),
+		);
+		$this->assertTrue($client->submit($invoice)->isSubmitted());
+	}
+
+	/* ===================== idempotency guard ===================== */
+
+	public function testIdempotencyGuard(): void
+	{
+		$previousDateTime = new \DateTime('2026-08-15 10:00:00');
+
+		foreach ([ChorusProSubmissionStatus::SUBMITTED, ChorusProSubmissionStatus::FLUX_SUBMITTED, ChorusProSubmissionStatus::ACCEPTED, ChorusProSubmissionStatus::UNKNOWN] as $status) {
+			// submit(): the existing outcome is returned unchanged; no HTTP call at all (enforced by createRequestExecutor([])), but still re-persisted with the same values by the unconditional persist() wrapper
+			$buyer = $this->createChorusProRecipientBuyer();
+			$invoiceForSubmit = $this->createChorusProInvoice($buyer, $status, 'ALREADY-SUBMITTED', null, $previousDateTime);
+			$invoiceForSubmit->expects($this->once())->method('setChorusProSubmissionStatus')->with($status);
+			$invoiceForSubmit->expects($this->once())->method('setChorusProSubmissionId')->with('ALREADY-SUBMITTED');
+
+			$client = new ChorusProClient(
+				submissionMode: ChorusProSubmissionMode::SAISIE_API,
+				clientId: 'id',
+				clientSecret: 'secret',
+				accountLogin: 'account-login',
+				accountPassword: 'account-password',
+				enabled: true,
+				requestExecutor: $this->createRequestExecutor([]),
+			);
+			$result = $client->submit($invoiceForSubmit);
+			$this->assertSame($status, $result->status, $status->value);
+			$this->assertSame('ALREADY-SUBMITTED', $result->submissionId, $status->value);
+			$this->assertSame($previousDateTime, $result->dateTime, $status->value);
+
+			// depositFlux(): same guard
+			$invoiceForFlux = $this->createChorusProInvoice($buyer, $status, 'ALREADY-SUBMITTED', null, $previousDateTime);
+
+			$fluxClient = new ChorusProClient(
+				submissionMode: ChorusProSubmissionMode::SAISIE_API,
+				clientId: 'id',
+				clientSecret: 'secret',
+				accountLogin: 'account-login',
+				accountPassword: 'account-password',
+				enabled: true,
+				requestExecutor: $this->createRequestExecutor([]),
+			);
+			$this->assertSame($status, $fluxClient->depositFlux($invoiceForFlux, '<html></html>')->status, $status->value);
+		}
+	}
+
+	/* ===================== DEPOT_PDF_SIGNE_API / depositFlux(signed: true) ===================== */
+
+	public function testSubmitSignedPdfApi(): void
+	{
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::DEPOT_PDF_SIGNE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			pdfSigner: $this->createFakePdfSigner(),
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0, 'pieceJointeId' => 555])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => [['idStructureCPP' => 999]]])),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => 'SIGNED-1'])),
+			]),
+		);
+		$result = $client->submit($this->createInvoice($this->createChorusProRecipientBuyer()), '<html><body><h1>Invoice</h1></body></html>');
+		$this->assertSame(ChorusProSubmissionStatus::SUBMITTED, $result->status);
+		$this->assertSame('SIGNED-1', $result->submissionId);
+	}
+
+	public function testDepositFluxSigned(): void
+	{
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			pdfSigner: $this->createFakePdfSigner(),
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0, 'numeroFluxDepot' => 'FLUX-SIGNED'])),
+			]),
+		);
+		$result = $client->depositFlux($this->createInvoice($this->createChorusProRecipientBuyer()), '<html><body><h1>Invoice</h1></body></html>', signed: true);
+		$this->assertSame(ChorusProSubmissionStatus::FLUX_SUBMITTED, $result->status);
+		$this->assertSame('FLUX-SIGNED', $result->submissionId);
+	}
+
+	/* ===================== uploadFile() ===================== */
+
+	public function testUploadFile(): void
+	{
+		// Happy path
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0, 'pieceJointeId' => 777])),
+			]),
+		);
+		$this->assertSame(777, $client->uploadFile('invoice.pdf', 'fake-pdf-content'));
+
+		// codeRetour != 0 -> rejected, RuntimeException carrying Chorus Pro's error message
+		$clientRejected = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 10, 'libelle' => 'Invalid file'])),
+			]),
+		);
+		try {
+			$clientRejected->uploadFile('invoice.pdf', 'fake-pdf-content');
+			$this->fail('Expected a RuntimeException.');
+		}
+		catch (\RuntimeException $e) {
+			$this->assertStringContainsString('Invalid file', $e->getMessage());
+		}
+
+		// No "pieceJointeId" in the response -> RuntimeException
+		$clientMissingId = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['codeRetour' => 0])),
+			]),
+		);
+		try {
+			$clientMissingId->uploadFile('invoice.pdf', 'fake-pdf-content');
+			$this->fail('Expected a RuntimeException.');
+		}
+		catch (\RuntimeException $e) {
+			$this->assertStringContainsString('Unable to upload', $e->getMessage());
+		}
+	}
+
+	/* ===================== resolveStructureId() (via submit()) ===================== */
+
+	public function testResolveStructureId(): void
+	{
+		// $supplierStructureId configured: skips "rechercher" entirely, the configured id is used directly in the payload
+		$httpClient = $this->createMock(ClientInterface::class);
+		$httpClient->method('sendRequest')->willReturnCallback(function ($request) use (&$requestBodies) {
+			$requestBodies[] = (string) $request->getBody();
+			$uri = (string) $request->getUri();
+			return match (true) {
+				str_contains($uri, 'soumettre') => new Response(200, ['Content-Type' => 'application/json'], json_encode(['identifiantFactureCPP' => '1'])),
+				default => $this->createOauthTokenResponse(),
+			};
+		});
+		$requestBodies = [];
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: new HTTPRequestExecutor($httpClient),
+			supplierStructureId: 777,
+		);
+		$this->assertTrue($client->submit($this->createInvoice($this->createChorusProRecipientBuyer()))->isSubmitted());
+		$payload = json_decode(end($requestBodies), true);
+		$this->assertSame(777, $payload['fournisseur']['idFournisseur']);
+
+		// Structure not found (no "idStructureCPP" in the "rechercher" response) -> ERROR, same as any other unexpected failure
+		$clientNotFound = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['listeStructures' => []])),
+			]),
+		);
+		$result = $clientNotFound->submit($this->createInvoice($this->createChorusProRecipientBuyer()));
+		$this->assertSame(ChorusProSubmissionStatus::ERROR, $result->status);
+		$this->assertStringContainsString('Unable to resolve the Chorus Pro structure id', $result->error);
+	}
+
 	/* ===================== getInvoiceStatus() ===================== */
 
 	public function testGetInvoiceStatus(): void
@@ -393,6 +660,55 @@ final class ChorusProClientTest extends TestCase
 		$this->assertNull($clientAuthFailure->getInvoiceStatus('12345'));
 	}
 
+	/* ===================== getFluxStatus() ===================== */
+
+	public function testGetFluxStatus(): void
+	{
+		// Happy path
+		$client = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(200, ['Content-Type' => 'application/json'], json_encode(['etatCourantDepotFlux' => 'INTEGRE'])),
+			]),
+		);
+		$this->assertSame(['etatCourantDepotFlux' => 'INTEGRE'], $client->getFluxStatus('FLUX-123'));
+
+		// API error status -> null (the error body is not returned as a status)
+		$clientApiError = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				$this->createOauthTokenResponse(),
+				new Response(500, ['Content-Type' => 'application/json'], json_encode(['libelle' => 'Internal error'])),
+			]),
+		);
+		$this->assertNull($clientApiError->getFluxStatus('FLUX-123'));
+
+		// Authentication failure -> null, no second HTTP call
+		$clientAuthFailure = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: true,
+			requestExecutor: $this->createRequestExecutor([
+				new Response(401, ['Content-Type' => 'application/json'], json_encode(['error' => 'invalid_client'])),
+			]),
+		);
+		$this->assertNull($clientAuthFailure->getFluxStatus('FLUX-123'));
+	}
+
 	/* ===================== depositFlux() ===================== */
 
 	public function testDepositFlux(): void
@@ -415,6 +731,18 @@ final class ChorusProClientTest extends TestCase
 		$this->assertTrue($result->isSubmitted());
 		$this->assertSame('FLUX-123', $result->submissionId);
 		$this->assertNull($result->error);
+
+		// Feature flag disabled: no HTTP call at all
+		$clientDisabled = new ChorusProClient(
+			submissionMode: ChorusProSubmissionMode::SAISIE_API,
+			clientId: 'id',
+			clientSecret: 'secret',
+			accountLogin: 'account-login',
+			accountPassword: 'account-password',
+			enabled: false,
+			requestExecutor: $this->createRequestExecutor([]),
+		);
+		$this->assertSame(ChorusProSubmissionStatus::DISABLED, $clientDisabled->depositFlux($this->createInvoice($this->createChorusProRecipientBuyer()), '<html></html>')->status);
 
 		// $signed=true but no PDFSignerInterface configured -> ERROR, no HTTP call (generateFacturXFileContent() throws before reaching the network)
 		$clientNoSigner = new ChorusProClient(
@@ -468,18 +796,7 @@ final class ChorusProClientTest extends TestCase
 			]),
 		);
 		$buyer = $this->createChorusProRecipientBuyer();
-		$invoice = $this->createMockForIntersectionOfInterfaces([InvoiceInterface::class, ChorusProInvoiceInterface::class]);
-		$invoice->method('getType')->willReturn(InvoiceType::INVOICE);
-		$invoice->method('getBuyer')->willReturn($buyer);
-		$seller = $this->createMock(OrganizationInterface::class);
-		$seller->method('getName')->willReturn('MyTime SAS');
-		$seller->method('getRegistrationNumber')->willReturn('12345678900012');
-		$invoice->method('getSeller')->willReturn($seller);
-		$invoice->method('getInvoiceNumber')->willReturn('INV-2026-002');
-		$invoice->method('getDate')->willReturn(new \DateTime('2026-09-01'));
-		$invoice->method('getCurrency')->willReturn('EUR');
-		$invoice->method('getProductsList')->willReturn([$this->createProduct('Abonnement', 100.0, 1.0, 20.0)]);
-		$invoice->method('getChorusProSubmissionStatus')->willReturn(null);
+		$invoice = $this->createChorusProInvoice($buyer, invoiceNumber: 'INV-2026-002');
 		$invoice->expects($this->once())->method('setChorusProSubmissionStatus')->with(ChorusProSubmissionStatus::FLUX_SUBMITTED);
 		$invoice->expects($this->once())->method('setChorusProSubmissionId')->with('FLUX-456');
 		$invoice->expects($this->once())->method('setChorusProSubmissionDateTime');
