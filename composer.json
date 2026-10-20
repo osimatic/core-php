@@ -15,6 +15,7 @@
 		"ext-calendar": "*",
 		"ext-ftp": "*",
 		"psr/log": "*",
+		"monolog/monolog": "^3",
 		"psr/http-message": "*",
 		"giggsey/libphonenumber-for-php": "^9",
 		"james-heinrich/getid3": "^1",

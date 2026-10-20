@@ -1,21 +1,14 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(grep:*)",
-      "Bash(vendor/bin/phpunit:*)",
-      "Bash(vendorbinphpunit:*)",
-      "Bash(php vendor/bin/phpunit:*)",
-      "Bash(php -r:*)",
-      "Bash(php test_vat_debug.php:*)",
-      "Bash(php debug_truncate.php:*)",
-      "Bash(php:*)",
-      "Bash(./vendor/bin/phpunit:*)",
-      "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit:*)",
-      "Bash(cmd /c \"set XDEBUG_MODE=coverage&& php vendor/bin/phpunit --coverage-text --colors=never\")",
-      "Bash(export XDEBUG_MODE=coverage)",
-      "Bash(set XDEBUG_MODE=coverage)",
-      "Bash(cmd /c \"set XDEBUG_MODE=coverage && php vendor/bin/phpunit --coverage-html coverage/\")",
-      "Bash(powershell -Command \"$env:XDEBUG_MODE=''coverage''; vendor\\\\bin\\\\phpunit --coverage-html coverage/\")"
-    ]
+	"allow": [
+	  "Bash(grep:*)",
+	  "Bash(php:*)",
+	  "Bash(vendor/bin/phpunit:*)",
+	  "Bash(./vendor/bin/phpunit:*)",
+	  "Bash(XDEBUG_MODE=coverage vendor/bin/phpunit:*)",
+	  "Bash(git log *)",
+	  "WebFetch(domain:github.com)",
+	  "WebFetch(domain:raw.githubusercontent.com)"
+	]
   }
 }
