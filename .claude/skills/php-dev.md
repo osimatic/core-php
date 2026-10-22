@@ -1,6 +1,6 @@
-# PHP Development Skill - helpers-php Project
+# PHP Development Skill - core-php Project
 
-This skill configures Claude to follow the specific development guidelines for the helpers-php project.
+This skill configures Claude to follow the specific development guidelines for the core-php project.
 
 ## Language & Communication
 - **Communication language:** French (respond in French)
@@ -69,7 +69,7 @@ Be proactive when reading files. Report any issues found, even if unrelated to t
 - Exception: If explicitly requested by the user after an accidental rejection
 
 ## Project Context
-- Project: helpers-php (Osimatic PHP helper library)
+- Project: core-php (Osimatic PHP helper library)
 - Production code: Changes must maintain backward compatibility
 - Method deprecation: Use @deprecated annotation and create aliases
 

@@ -1,6 +1,6 @@
-# Claude Development Guidelines - helpers-php
+# Claude Development Guidelines - core-php
 
-This file contains the development guidelines for the helpers-php project. Claude will automatically follow these rules when working on this codebase.
+This file contains the development guidelines for the core-php project. Claude will automatically follow these rules when working on this codebase.
 
 ## 🗣️ Language Requirements
 
@@ -145,7 +145,7 @@ Always include relevant reference links:
 
 ## 🚀 Project Context
 
-- **Project:** helpers-php (Osimatic PHP helper library)
+- **Project:** core-php (Osimatic PHP helper library)
 - **Status:** Production code
 - **PHP Version:** 8.0+
 - **Testing:** PHPUnit
@@ -248,4 +248,4 @@ public function testConstructor(): void
 
 ---
 
-**Note:** These guidelines ensure code quality, maintainability, and consistency across the helpers-php project. All contributors (human or AI) should follow these standards.
+**Note:** These guidelines ensure code quality, maintainability, and consistency across the core-php project. All contributors (human or AI) should follow these standards.
