@@ -9,6 +9,36 @@ use PHPUnit\Framework\TestCase;
 
 final class VatNumberTest extends TestCase
 {
+	/* ===================== Setup ===================== */
+
+	/**
+	 * Replaces the real VIES SOAP service with a fake client so that tests do not depend on the network.
+	 * The fake client reports every number as valid, except the all-zero number used by the invalid-number tests.
+	 * @link https://www.php.net/manual/en/class.soapclient.php
+	 */
+	protected function setUp(): void
+	{
+		VatNumber::setViesClient(new class extends \SoapClient {
+			public function __construct()
+			{
+				// Intentionally does not call parent::__construct(): no WSDL is loaded
+			}
+
+			public function checkVat(array $args): object
+			{
+				return (object) ['valid' => $args['vatNumber'] !== '00000000000'];
+			}
+		});
+	}
+
+	/**
+	 * Restores the default VIES client behavior after each test.
+	 */
+	protected function tearDown(): void
+	{
+		VatNumber::setViesClient(null);
+	}
+
 	/* ===================== format() ===================== */
 
 	public function testFormat(): void

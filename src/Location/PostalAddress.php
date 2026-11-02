@@ -32,7 +32,7 @@ class PostalAddress
 	public static function isValidStreet(?string $value): bool
 	{
 		//return preg_match('/(([0-9]+ )?[a-zA-Z ]){1,200}$/', $value);
-		return preg_match('/^(.){1,200}$/u', $value);
+		return preg_match('/^(.){1,200}$/u', $value ?? '');
 	}
 
 	/**
@@ -47,11 +47,11 @@ class PostalAddress
 		if (null !== $country) {
 			$regex = self::getPostalCodeRegex($country);
 			if (null !== $regex) {
-				return preg_match('/^'.$regex.'$/u', $value);
+				return preg_match('/^'.$regex.'$/u', $value ?? '');
 			}
 		}
 
-		return preg_match('/^([\-\.\s\w]){3,15}$/u', $value);
+		return preg_match('/^([\-\.\s\w]){3,15}$/u', $value ?? '');
 	}
 
 	/**
@@ -73,7 +73,7 @@ class PostalAddress
 	{
 		// /^([a-zA-Z'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]){2-100}$/
 		//return preg_match('/^[a-zA-Z\'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]+$/u', $value);
-		return preg_match('/^(.){1,100}$/u', $value);
+		return preg_match('/^(.){1,100}$/u', $value ?? '');
 	}
 
 

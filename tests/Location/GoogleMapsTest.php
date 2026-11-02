@@ -772,6 +772,7 @@ final class GoogleMapsTest extends TestCase
 					'types' => ['postal_code']
 				],
 				[
+					'long_name' => 'United Kingdom',
 					'short_name' => 'GB',
 					'types' => ['country']
 				]

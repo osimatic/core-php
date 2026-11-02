@@ -50,6 +50,28 @@ class FirebaseMessaging implements MobilePushNotificationSenderInterface
 	}
 
 	/**
+	 * Checks that the service account key file is valid JSON containing the fields required by the Google client.
+	 * Validating these fields beforehand avoids PHP warnings raised by the Google client when they are missing.
+	 * @return bool True if client_id, client_email and private_key are present and not empty
+	 * @link https://developers.google.com/identity/protocols/oauth2/service-account Service account credentials
+	 */
+	private function hasRequiredServiceKeys(): bool
+	{
+		$config = json_decode((string) file_get_contents($this->serviceKeyFile), true);
+		if (!is_array($config)) {
+			return false;
+		}
+
+		foreach (['client_id', 'client_email', 'private_key'] as $requiredKey) {
+			if (empty($config[$requiredKey])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Send the message to the device
 	 * @param PushNotificationInterface $mobilePushNotification
 	 * @return PushNotificationSendingResponse
@@ -68,6 +90,11 @@ class FirebaseMessaging implements MobilePushNotificationSenderInterface
 
 		if (!file_exists($this->serviceKeyFile)) {
 			$this->logger->error('Service key file does not exist: ' . $this->serviceKeyFile);
+			return new PushNotificationSendingResponse(false, PushNotificationSendingStatus::SETTINGS_INVALID);
+		}
+
+		if (!$this->hasRequiredServiceKeys()) {
+			$this->logger->error('Service key file is missing required fields (client_id, client_email, private_key)');
 			return new PushNotificationSendingResponse(false, PushNotificationSendingStatus::SETTINGS_INVALID);
 		}
 
