@@ -113,6 +113,11 @@ class GoogleRoutesMatrix
 			];
 		}
 
+		// The API rejects departure times in the past: in that case the field is omitted and the current time is used
+		if (null !== ($departureTime = $parameters->getDepartureTime()) && $departureTime > new \DateTimeImmutable()) {
+			$body['departureTime'] = \DateTimeImmutable::createFromInterface($departureTime)->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z');
+		}
+
 		$json = $this->requestExecutor->execute(HTTPMethod::POST, self::API_URL, $body, [
 			'X-Goog-Api-Key' => $this->apiKey,
 			'X-Goog-FieldMask' => self::FIELD_MASK,

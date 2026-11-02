@@ -47,6 +47,12 @@ class RouteParameters
 	private bool $trafficAware = false;
 
 	/**
+	 * Desired departure time of the route, used to compute the traffic-aware duration.
+	 * @var \DateTimeInterface|null
+	 */
+	private ?\DateTimeInterface $departureTime = null;
+
+	/**
 	 * Gets the array of preferred transit travel modes for public transit routing.
 	 * @return TransitTravelMode[] Array of transit modes (BUS, SUBWAY, TRAIN, LIGHT_RAIL)
 	 */
@@ -163,6 +169,27 @@ class RouteParameters
 	public function setTrafficAware(bool $trafficAware): self
 	{
 		$this->trafficAware = $trafficAware;
+		return $this;
+	}
+
+	/**
+	 * Gets the desired departure time of the route.
+	 * @return \DateTimeInterface|null The departure time, or null to use the current time
+	 */
+	public function getDepartureTime(): ?\DateTimeInterface
+	{
+		return $this->departureTime;
+	}
+
+	/**
+	 * Sets the desired departure time of the route.
+	 * The departure time is only sent to the API when it is in the future, because past departure times are rejected.
+	 * @param \DateTimeInterface|null $departureTime The departure time, or null to use the current time
+	 * @return self Returns this instance for method chaining
+	 */
+	public function setDepartureTime(?\DateTimeInterface $departureTime): self
+	{
+		$this->departureTime = $departureTime;
 		return $this;
 	}
 

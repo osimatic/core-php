@@ -98,6 +98,17 @@ class GoogleRoutesMatrixTest extends TestCase
 		self::assertSame(['BUS', 'SUBWAY'], $body['transitPreferences']['allowedTravelModes']);
 		self::assertArrayNotHasKey('routingPreference', $body);
 
+		// Future departure time: sent as RFC 3339 UTC
+		$response = '[{"originIndex":0,"destinationIndex":0,"duration":"700s","distanceMeters":9000,"status":{},"condition":"ROUTE_EXISTS"}]';
+		$client = new GoogleRoutesMatrix(self::TEST_API_KEY, new NullLogger(), $this->createHttpClientMock($response, $request));
+		self::assertSame([700, 9000], $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, (new RouteParameters())->setDepartureTime(new \DateTimeImmutable('2099-01-01T12:00:00+01:00'))));
+		self::assertSame('2099-01-01T11:00:00Z', $this->decodeRequestBody($request)['departureTime']);
+
+		// Past departure time: omitted, the API then uses the current time
+		$client = new GoogleRoutesMatrix(self::TEST_API_KEY, new NullLogger(), $this->createHttpClientMock($response, $request));
+		self::assertSame([700, 9000], $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, (new RouteParameters())->setDepartureTime(new \DateTimeImmutable('2000-01-01T00:00:00Z'))));
+		self::assertArrayNotHasKey('departureTime', $this->decodeRequestBody($request));
+
 		// Route not found: null
 		$response = '[{"originIndex":0,"destinationIndex":0,"status":{"code":5,"message":"not found"},"condition":"ROUTE_NOT_FOUND"}]';
 		$client = new GoogleRoutesMatrix(self::TEST_API_KEY, new NullLogger(), $this->createHttpClientMock($response, $request));

@@ -250,6 +250,21 @@ class RouteParametersTest extends TestCase
 		self::assertTrue($params->isAvoidIndoor());
 	}
 
+	// ========== Departure Time Tests ==========
+
+	public function testGetDepartureTime(): void
+	{
+		$params = new RouteParameters();
+		self::assertNull($params->getDepartureTime());
+
+		$departureTime = new \DateTimeImmutable('2099-01-01T12:00:00Z');
+		self::assertSame($params, $params->setDepartureTime($departureTime)); // Test fluent interface
+		self::assertSame($departureTime, $params->getDepartureTime());
+
+		$params->setDepartureTime(null);
+		self::assertNull($params->getDepartureTime());
+	}
+
 	// ========== Traffic Tests ==========
 
 	public function testIsTrafficAware(): void
