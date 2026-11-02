@@ -54,10 +54,10 @@ class GoogleDistanceMatrix
 	 * @param string $originCoordinates Origin coordinates in format "latitude,longitude" (e.g., "48.8566,2.3522")
 	 * @param string $destinationCoordinates Destination coordinates in format "latitude,longitude" (e.g., "51.5074,0.1278")
 	 * @param TravelMode $travelMode The travel mode to use (DRIVE, TRANSIT, WALK, or BICYCLE). Default: TravelMode::DRIVE
-	 * @param GoogleDistanceMatrixParameters $parameters Additional parameters for route calculation (avoid tolls/highways/ferries/indoor, transit modes)
+	 * @param RouteParameters $parameters Additional parameters for route calculation (avoid tolls/highways/ferries/indoor, transit modes)
 	 * @return array|null Returns array [duration_in_seconds, distance_in_meters] on success, null on failure or invalid travel mode
 	 */
-	public function getDistanceMatrix(string $originCoordinates, string $destinationCoordinates, TravelMode $travelMode = TravelMode::DRIVE, GoogleDistanceMatrixParameters $parameters = new GoogleDistanceMatrixParameters()): ?array
+	public function getDistanceMatrix(string $originCoordinates, string $destinationCoordinates, TravelMode $travelMode = TravelMode::DRIVE, RouteParameters $parameters = new RouteParameters()): ?array
 	{
 		if (empty($this->apiKey)) {
 			$this->logger->error('Google Distance Matrix API key is missing');

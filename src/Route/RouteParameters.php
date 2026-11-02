@@ -3,10 +3,12 @@
 namespace Osimatic\Route;
 
 /**
- * Configuration parameters for Google Distance Matrix API requests.
- * This class holds optional routing preferences such as transit modes and route avoidance options.
+ * Routing options used when calculating the distance and the duration of a route.
+ * This class holds optional routing preferences such as transit modes, route avoidance options and real-time traffic.
+ * Options that do not apply to the requested travel mode are ignored by the route provider.
+ * @link https://developers.google.com/maps/documentation/routes/reference/rest/v2/TopLevel/computeRouteMatrix Routes API computeRouteMatrix reference
  */
-class GoogleDistanceMatrixParameters
+class RouteParameters
 {
 	/**
 	 * Array of transit travel modes to use for public transit routing.
@@ -37,6 +39,12 @@ class GoogleDistanceMatrixParameters
 	 * @var bool
 	 */
 	private bool $avoidIndoor = false;
+
+	/**
+	 * Whether the duration must take real-time traffic into account (only used with the DRIVE travel mode).
+	 * @var bool
+	 */
+	private bool $trafficAware = false;
 
 	/**
 	 * Gets the array of preferred transit travel modes for public transit routing.
@@ -135,6 +143,26 @@ class GoogleDistanceMatrixParameters
 	public function setAvoidIndoor(bool $avoidIndoor): self
 	{
 		$this->avoidIndoor = $avoidIndoor;
+		return $this;
+	}
+
+	/**
+	 * Checks if the duration must take real-time traffic into account.
+	 * @return bool True if traffic is taken into account, false otherwise
+	 */
+	public function isTrafficAware(): bool
+	{
+		return $this->trafficAware;
+	}
+
+	/**
+	 * Sets whether the duration must take real-time traffic into account (only used with the DRIVE travel mode).
+	 * @param bool $trafficAware True to take traffic into account, false to ignore it
+	 * @return self Returns this instance for method chaining
+	 */
+	public function setTrafficAware(bool $trafficAware): self
+	{
+		$this->trafficAware = $trafficAware;
 		return $this;
 	}
 
