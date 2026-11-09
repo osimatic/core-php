@@ -23,7 +23,7 @@ class Name
 	 */
 	public static function isValidCivility(string|int|null $value): bool
 	{
-		return preg_match('/[0-2]/', $value);
+		return preg_match('/[0-2]/', (string) $value);
 	}
 
 	/**
@@ -36,7 +36,7 @@ class Name
 	 */
 	public static function isValidFirstName(?string $value, bool $numbersAllowed=false): bool
 	{
-		return preg_match('/^(['.($numbersAllowed?'0-9':'').'a-zA-Z\'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]{3,120})$/u', $value);
+		return preg_match('/^(['.($numbersAllowed?'0-9':'').'a-zA-Z\'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]{3,120})$/u', $value ?? '');
 	}
 
 	/**
@@ -61,7 +61,7 @@ class Name
 	 */
 	public static function isValidLastName(?string $value, bool $numbersAllowed=false): bool
 	{
-		return preg_match('/^(['.($numbersAllowed?'0-9':'').'a-zA-Z\'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]{2,120})$/u', $value);
+		return preg_match('/^(['.($numbersAllowed?'0-9':'').'a-zA-Z\'àâäéèêëìîïòôöùûüçÀÂÄÉÈÊËÌÎÏÒÔÖÙÛÜÇ\s-]{2,120})$/u', $value ?? '');
 	}
 
 	/**

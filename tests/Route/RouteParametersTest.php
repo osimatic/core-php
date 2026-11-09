@@ -2,30 +2,31 @@
 
 namespace Tests\Route;
 
-use Osimatic\Route\GoogleDistanceMatrixParameters;
+use Osimatic\Route\RouteParameters;
 use Osimatic\Route\TransitTravelMode;
 use PHPUnit\Framework\TestCase;
 
-class GoogleDistanceMatrixParametersTest extends TestCase
+class RouteParametersTest extends TestCase
 {
 	// ========== Constructor and Default Values ==========
 
 	public function testConstructorSetsDefaultValues(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		self::assertSame([], $params->getTransitModes());
 		self::assertFalse($params->isAvoidTolls());
 		self::assertFalse($params->isAvoidHighways());
 		self::assertFalse($params->isAvoidFerries());
 		self::assertFalse($params->isAvoidIndoor());
+		self::assertFalse($params->isTrafficAware());
 	}
 
 	// ========== Transit Modes Tests ==========
 
 	public function testGetTransitModesReturnsEmptyArrayByDefault(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->getTransitModes();
 
@@ -35,7 +36,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetTransitModes(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$modes = [TransitTravelMode::BUS, TransitTravelMode::SUBWAY];
 
 		$result = $params->setTransitModes($modes);
@@ -46,7 +47,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetTransitModesWithSingleMode(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$modes = [TransitTravelMode::TRAIN];
 
 		$params->setTransitModes($modes);
@@ -57,7 +58,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetTransitModesWithAllModes(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$modes = [
 			TransitTravelMode::BUS,
 			TransitTravelMode::SUBWAY,
@@ -73,7 +74,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetTransitModesReplacesExistingModes(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setTransitModes([TransitTravelMode::BUS]);
 
 		$newModes = [TransitTravelMode::SUBWAY, TransitTravelMode::TRAIN];
@@ -85,7 +86,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetTransitModesWithEmptyArray(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setTransitModes([TransitTravelMode::BUS]);
 
 		$params->setTransitModes([]);
@@ -97,14 +98,14 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testIsAvoidTollsDefaultsToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		self::assertFalse($params->isAvoidTolls());
 	}
 
 	public function testSetAvoidTollsToTrue(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->setAvoidTolls(true);
 
@@ -114,7 +115,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetAvoidTollsToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setAvoidTolls(true);
 
 		$params->setAvoidTolls(false);
@@ -124,7 +125,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testAvoidTollsConvenienceMethod(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->avoidTolls();
 
@@ -136,14 +137,14 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testIsAvoidHighwaysDefaultsToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		self::assertFalse($params->isAvoidHighways());
 	}
 
 	public function testSetAvoidHighwaysToTrue(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->setAvoidHighways(true);
 
@@ -153,7 +154,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetAvoidHighwaysToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setAvoidHighways(true);
 
 		$params->setAvoidHighways(false);
@@ -163,7 +164,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testAvoidHighwaysConvenienceMethod(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->avoidHighways();
 
@@ -175,14 +176,14 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testIsAvoidFerriesDefaultsToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		self::assertFalse($params->isAvoidFerries());
 	}
 
 	public function testSetAvoidFerriesToTrue(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->setAvoidFerries(true);
 
@@ -192,7 +193,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetAvoidFerriesToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setAvoidFerries(true);
 
 		$params->setAvoidFerries(false);
@@ -202,7 +203,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testAvoidFerriesConvenienceMethod(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->avoidFerries();
 
@@ -214,14 +215,14 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testIsAvoidIndoorDefaultsToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		self::assertFalse($params->isAvoidIndoor());
 	}
 
 	public function testSetAvoidIndoorToTrue(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->setAvoidIndoor(true);
 
@@ -231,7 +232,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetAvoidIndoorToFalse(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setAvoidIndoor(true);
 
 		$params->setAvoidIndoor(false);
@@ -241,7 +242,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testAvoidIndoorConvenienceMethod(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params->avoidIndoor();
 
@@ -249,11 +250,42 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 		self::assertTrue($params->isAvoidIndoor());
 	}
 
+	// ========== Departure Time Tests ==========
+
+	public function testGetDepartureTime(): void
+	{
+		$params = new RouteParameters();
+		self::assertNull($params->getDepartureTime());
+
+		$departureTime = new \DateTimeImmutable('2099-01-01T12:00:00Z');
+		self::assertSame($params, $params->setDepartureTime($departureTime)); // Test fluent interface
+		self::assertSame($departureTime, $params->getDepartureTime());
+
+		$params->setDepartureTime(null);
+		self::assertNull($params->getDepartureTime());
+	}
+
+	// ========== Traffic Tests ==========
+
+	public function testIsTrafficAware(): void
+	{
+		$params = new RouteParameters();
+		self::assertFalse($params->isTrafficAware());
+
+		$result = $params->setTrafficAware(true);
+
+		self::assertSame($params, $result); // Test fluent interface
+		self::assertTrue($params->isTrafficAware());
+
+		$params->setTrafficAware(false);
+		self::assertFalse($params->isTrafficAware());
+	}
+
 	// ========== Fluent Interface Tests ==========
 
 	public function testFluentInterfaceChaining(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params
 			->setTransitModes([TransitTravelMode::BUS, TransitTravelMode::SUBWAY])
@@ -272,7 +304,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testFluentInterfaceWithSetters(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$result = $params
 			->setAvoidTolls(true)
@@ -289,7 +321,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testFluentInterfaceMixedSettersAndConvenience(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params
 			->setAvoidTolls(false)
@@ -307,7 +339,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSetMultipleAvoidOptions(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params->avoidTolls()
 			   ->avoidHighways()
@@ -321,7 +353,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testSettingsAreIndependent(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params->setAvoidTolls(true);
 		self::assertTrue($params->isAvoidTolls());
@@ -340,7 +372,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testCanToggleSettingsMultipleTimes(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params->setAvoidTolls(true);
 		self::assertTrue($params->isAvoidTolls());
@@ -357,7 +389,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testAllOptionsEnabledSimultaneously(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params->setTransitModes([TransitTravelMode::BUS])
 			   ->avoidTolls()
@@ -374,7 +406,7 @@ class GoogleDistanceMatrixParametersTest extends TestCase
 
 	public function testComplexConfiguration(): void
 	{
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 
 		$params->setTransitModes([
 				TransitTravelMode::BUS,

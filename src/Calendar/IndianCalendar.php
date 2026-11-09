@@ -298,11 +298,11 @@ class IndianCalendar
 			$remainingDays = $dayOfYear - $chaitraDays;
 			if ($remainingDays < (31 * 5)) {
 				$indianMonth = (int)(floor($remainingDays / 31) + 2);
-				$indianDay = (int)(($remainingDays % 31) + 1);
+				$indianDay = (int)((((int)$remainingDays) % 31) + 1);
 			} else {
 				$remainingDays -= 31 * 5;
 				$indianMonth = (int)(floor($remainingDays / 30) + 7);
-				$indianDay = (int)(($remainingDays % 30) + 1);
+				$indianDay = (int)((((int)$remainingDays) % 30) + 1);
 			}
 		}
 

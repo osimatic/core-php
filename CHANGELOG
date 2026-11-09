@@ -56,3 +56,6 @@ Version du 26/01/2026 :
 
 Version du 01/10/2026 :
 - InvoiceInterface->getBillingTaxRate() -> InvoiceProductInterface->getVatRate()
+
+Version du 02/11/2026 :
+- GoogleDistanceMatrixParameters -> RouteParameters

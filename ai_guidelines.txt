@@ -1,0 +1,23 @@
+Prérequis :
+- je te parle en francais, parle moi en francais
+- tout code produit doit respecter les conventions de code du code existant, doit être écrit en anglais, commenté si besoin en anglais, documenté avec la phpdoc en anglais (avec un ou plusieurs lien vers une référence sur le sujet si possible et pertinent)
+- tout code produits (ou concerné par une demande d'écriture de test) doit être testé de façon intégral et précise avec la couverture de tout les cas possible, même si cela implique l'écriture de mock complexe).
+- quand je reject une modif c'est que ça me convient pas, ce n'est pas la peine de me reproposer la même modif (sauf si je te le demande suite à fausse manip)
+- pour la doc et commentaire, pas de saut de ligne en milieu de phrase
+- améliorer une class : fait moi des propositions pour correction de bugs, doc , traduction anglais, organisation par section, ajout de méthodes, renommage de méthodes, fusion ou séparation de méthodes, suppression de méthodes si devenue inutile,...
+- quand tu renomme une méthode , tu dois ajouter l'ancien nom en alias et en deprecated car c'est du code en prod
+- généralement les class sont organisées en section, quand tu ajoutes qqchose, ne l'ajoute pas a la fin mais dans la section correspondante
+- les tests doivent obligatoirement être organisé en section avec strictement la même organisation et dans le même ordre que la class testée. Il y a (sauf exceptions justifiee par la taille ou complexité) une seule méthode de test pour une fonction testée, nomme comme ceci : testNomDeLaMethodeTestee si la méthode testée s'appelle nomDeLaMethodeTestee. Cherche d'abord si la méthode de test n'est pas existante avant de l'ajouter.
+- si qd tu écrit tes test ou qd tu exécute tes test, tu te rend compte d'un pb (échec test, erreur qqonque) tu ne doit PAS régresser le test. Regarde toujours s'il n'y a pas un pb dans l'implémentation ou si on pourrait pas améliorer l'implémentation plutôt que de modifier le test car potentiellement ton test est bon ou logique (a moins d'une erreur sur l'écriture du test ou autre raison évidente).
+- Soit force de proposition : qd je te demande qqchose, si tu lit le fichier et que tu te rend compte d'un pb ou anomalie même si elle a rien a voir avec ce que je t'ai demandé , dis le moi. Par exemple, tu vois un autre bug , du code en français, une méthode mal nommée, etc.
+
+Général :
+- je te parle en francais, parle moi en francais
+- toute modif doit etre fait fichier par fichier avec l'outil edit
+- tout code produit doit respecter les conventions de code du code existant, doit être écrit en anglais, commenté si besoin en anglais, documenté avec la doc en anglais (avec un ou plusieurs lien vers une référence sur le sujet si possible et pertinent)
+- quand je reject une modif c'est que ça me convient pas, ce n'est pas la peine de me reproposer la même modif (sauf si je te le demande suite à fausse manip)
+- pour la doc et commentaire, pas de saut de ligne en milieu de phrase
+- améliorer une class : fait moi des propositions pour correction de bugs, doc , traduction anglais, organisation par section, ajout de méthodes, renommage de méthodes, fusion ou séparation de méthodes, suppression de méthodes si devenue inutile,...
+- quand tu renomme une méthode , tu dois ajouter l'ancien nom en alias et en deprecated car c'est du code en prod
+- généralement les class sont organisées en section, quand tu ajoutes qqchose, ne l'ajoute pas a la fin mais dans la section correspondante
+- l'indentation correspond à une tabulationo

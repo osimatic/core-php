@@ -34,6 +34,11 @@ class Timezone
 	 */
 	public static function setCurrentTimezone(string $timezone): bool
 	{
+		// date_default_timezone_set() emits a notice on unknown identifiers, so validate them first
+		if (!in_array($timezone, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+			return false;
+		}
+
 		try {
 			return date_default_timezone_set($timezone);
 		} catch (\Exception) {

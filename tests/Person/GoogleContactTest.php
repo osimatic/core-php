@@ -91,8 +91,8 @@ final class GoogleContactTest extends TestCase
 
 	public function testConstructorWithAllParameters(): void
 	{
-		$logger = $this->createMock(LoggerInterface::class);
-		$httpClient = $this->createMock(ClientInterface::class);
+		$logger = $this->createStub(LoggerInterface::class);
+		$httpClient = $this->createStub(ClientInterface::class);
 
 		$googleContact = new GoogleContact(
 			self::TEST_CLIENT_ID,
@@ -114,7 +114,7 @@ final class GoogleContactTest extends TestCase
 
 	public function testConstructorWithLogger(): void
 	{
-		$logger = $this->createMock(LoggerInterface::class);
+		$logger = $this->createStub(LoggerInterface::class);
 		$googleContact = new GoogleContact(logger: $logger);
 
 		self::assertInstanceOf(GoogleContact::class, $googleContact);
@@ -122,7 +122,7 @@ final class GoogleContactTest extends TestCase
 
 	public function testConstructorWithHttpClientInjection(): void
 	{
-		$httpClient = $this->createMock(ClientInterface::class);
+		$httpClient = $this->createStub(ClientInterface::class);
 		$googleContact = new GoogleContact(httpClient: $httpClient);
 
 		self::assertInstanceOf(GoogleContact::class, $googleContact);
@@ -544,7 +544,7 @@ final class GoogleContactTest extends TestCase
 
 	public function testConstructorWithLoggerDoesNotThrow(): void
 	{
-		$logger = $this->createMock(LoggerInterface::class);
+		$logger = $this->createStub(LoggerInterface::class);
 
 		// Should not throw any exception
 		$googleContact = new GoogleContact(

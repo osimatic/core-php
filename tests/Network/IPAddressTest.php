@@ -224,7 +224,7 @@ final class IPAddressTest extends TestCase
 		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
 			->onlyMethods(['getClientIp'])
 			->getMock();
-		$requestMock->method('getClientIp')->willReturn('192.168.1.100');
+		$requestMock->expects($this->once())->method('getClientIp')->willReturn('192.168.1.100');
 		$this->assertSame('192.168.1.100', IPAddress::getFromRequest($requestMock));
 
 		// Case: getClientIp() returns 'unknown' → fallback to $_SERVER
@@ -232,7 +232,7 @@ final class IPAddressTest extends TestCase
 		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
 			->onlyMethods(['getClientIp'])
 			->getMock();
-		$requestMock->method('getClientIp')->willReturn('unknown');
+		$requestMock->expects($this->once())->method('getClientIp')->willReturn('unknown');
 		$this->assertSame('10.0.0.1', IPAddress::getFromRequest($requestMock));
 
 		// Case: getClientIp() returns empty → fallback to $_SERVER
@@ -240,7 +240,7 @@ final class IPAddressTest extends TestCase
 		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
 			->onlyMethods(['getClientIp'])
 			->getMock();
-		$requestMock->method('getClientIp')->willReturn('');
+		$requestMock->expects($this->once())->method('getClientIp')->willReturn('');
 		$this->assertSame('172.16.0.50', IPAddress::getFromRequest($requestMock));
 
 		// Case: getClientIp() empty and no $_SERVER → empty string
@@ -248,7 +248,7 @@ final class IPAddressTest extends TestCase
 		$requestMock = $this->getMockBuilder(\Symfony\Component\HttpFoundation\Request::class)
 			->onlyMethods(['getClientIp'])
 			->getMock();
-		$requestMock->method('getClientIp')->willReturn('');
+		$requestMock->expects($this->once())->method('getClientIp')->willReturn('');
 		$this->assertSame('', IPAddress::getFromRequest($requestMock));
 	}
 

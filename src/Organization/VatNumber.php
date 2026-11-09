@@ -8,6 +8,31 @@ namespace Osimatic\Organization;
  */
 class VatNumber
 {
+	// ========== Properties ==========
+
+	/**
+	 * Optional SOAP client used for VIES requests, mainly to inject a fake client in tests.
+	 * When null, a new SoapClient is created for each request.
+	 * @link https://www.php.net/manual/en/class.soapclient.php
+	 */
+	private static ?\SoapClient $viesClient = null;
+
+	// ========== Configuration ==========
+
+	/**
+	 * Sets the SOAP client used to query the VIES service.
+	 * Pass null to restore the default behavior (a new SoapClient per request).
+	 * @param \SoapClient|null $client The SOAP client to use for VIES requests
+	 * @return void
+	 * @link https://ec.europa.eu/taxation_customs/vies/ VIES service
+	 */
+	public static function setViesClient(?\SoapClient $client): void
+	{
+		self::$viesClient = $client;
+	}
+
+	// ========== Formatting ==========
+
 	/**
 	 * Formats a VAT number for display
 	 * @param string $vatNumber the VAT number to format
@@ -86,7 +111,7 @@ class VatNumber
 		$vatNumber = substr($vatNumber, 2);
 
 		try {
-			$client = new \SoapClient('http://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl');
+			$client = self::$viesClient ?? new \SoapClient('http://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl');
 			$response = $client->checkVat(['countryCode' => $countryCode, 'vatNumber' => $vatNumber]);
 			if (!$response->valid) {
 				return false;

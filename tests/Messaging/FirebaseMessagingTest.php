@@ -135,7 +135,7 @@ class FirebaseMessagingTest extends TestCase
 	{
 		// Create a temporary service key file for testing
 		$tempFile = tempnam(sys_get_temp_dir(), 'firebase_key_');
-		file_put_contents($tempFile, json_encode(['type' => 'service_account']));
+		file_put_contents($tempFile, json_encode(['type' => 'service_account', 'client_id' => '123456789', 'client_email' => 'test@test-project.iam.gserviceaccount.com', 'private_key' => 'fake-private-key']));
 
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
@@ -166,7 +166,7 @@ class FirebaseMessagingTest extends TestCase
 	{
 		// Create a temporary service key file for testing
 		$tempFile = tempnam(sys_get_temp_dir(), 'firebase_key_');
-		file_put_contents($tempFile, json_encode(['type' => 'service_account']));
+		file_put_contents($tempFile, json_encode(['type' => 'service_account', 'client_id' => '123456789', 'client_email' => 'test@test-project.iam.gserviceaccount.com', 'private_key' => 'fake-private-key']));
 
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
@@ -199,7 +199,7 @@ class FirebaseMessagingTest extends TestCase
 	{
 		// Create a temporary service key file for testing
 		$tempFile = tempnam(sys_get_temp_dir(), 'firebase_key_');
-		file_put_contents($tempFile, json_encode(['type' => 'service_account']));
+		file_put_contents($tempFile, json_encode(['type' => 'service_account', 'client_id' => '123456789', 'client_email' => 'test@test-project.iam.gserviceaccount.com', 'private_key' => 'fake-private-key']));
 
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
@@ -232,7 +232,7 @@ class FirebaseMessagingTest extends TestCase
 	{
 		// Create a temporary service key file for testing
 		$tempFile = tempnam(sys_get_temp_dir(), 'firebase_key_');
-		file_put_contents($tempFile, json_encode(['type' => 'service_account']));
+		file_put_contents($tempFile, json_encode(['type' => 'service_account', 'client_id' => '123456789', 'client_email' => 'test@test-project.iam.gserviceaccount.com', 'private_key' => 'fake-private-key']));
 
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
@@ -272,7 +272,7 @@ class FirebaseMessagingTest extends TestCase
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
 			->method('error')
-			->with(self::stringContains('Failed to authorize Google Client'));
+			->with(self::stringContains('Service key file is missing required fields'));
 
 		$sender = new FirebaseMessaging(
 			projectId: 'test-project',
@@ -310,7 +310,7 @@ class FirebaseMessagingTest extends TestCase
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects(self::once())
 			->method('error')
-			->with(self::stringContains('Failed to authorize Google Client'));
+			->with(self::stringContains('Service key file is missing required fields'));
 
 		$sender = new FirebaseMessaging(
 			projectId: 'test-project',

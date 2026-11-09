@@ -127,7 +127,7 @@ class Image
 	 */
 	public static function getWidth(string $imgPath): ?int
 	{
-		if (($size = getimagesize($imgPath)) === false) {
+		if (($size = self::getImageSize($imgPath)) === false) {
 			return null;
 		}
 		return $size[0];
@@ -140,7 +140,7 @@ class Image
 	 */
 	public static function getHeight(string $imgPath): ?int
 	{
-		if (($size = getimagesize($imgPath)) === false) {
+		if (($size = self::getImageSize($imgPath)) === false) {
 			return null;
 		}
 		return $size[1];
@@ -153,7 +153,7 @@ class Image
 	 */
 	public static function getMimeType(string $imgPath): ?string
 	{
-		if (($size = getimagesize($imgPath)) === false) {
+		if (($size = self::getImageSize($imgPath)) === false) {
 			return null;
 		}
 		return $size['mime'];
@@ -167,7 +167,7 @@ class Image
 	 */
 	public static function getImageInfo(string $imgPath): ?array
 	{
-		if (($size = getimagesize($imgPath)) === false) {
+		if (($size = self::getImageSize($imgPath)) === false) {
 			return null;
 		}
 		return [
@@ -203,7 +203,7 @@ class Image
 	 */
 	public static function getLastModifiedString(string $imgPath): ?string
 	{
-		if (false === ($lastModifTimestamp = filemtime($imgPath))) {
+		if (!is_file($imgPath) || false === ($lastModifTimestamp = filemtime($imgPath))) {
 			return null;
 		}
 		if (!($lastModifFormattedDateTime = gmdate('D, d M Y H:i:s', $lastModifTimestamp))) {
@@ -377,6 +377,20 @@ class Image
 			'latitude' => $latitude,
 			'longitude' => $longitude,
 		];
+	}
+
+	/**
+	 * Reads the image information with getimagesize() only when the file exists, to avoid PHP warnings on missing files.
+	 * @param string $imgPath The complete path to the image file
+	 * @return array|false The result of getimagesize(), or false if the file does not exist or cannot be read as an image
+	 * @link https://www.php.net/manual/en/function.getimagesize.php
+	 */
+	private static function getImageSize(string $imgPath): array|false
+	{
+		if (!is_file($imgPath)) {
+			return false;
+		}
+		return getimagesize($imgPath);
 	}
 
 	// ========== Image Output ==========

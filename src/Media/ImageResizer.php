@@ -132,7 +132,7 @@ class ImageResizer
 			$this->validateRatio($ratio);
 		}
 
-		$size = getimagesize($imagePath);
+		$size = is_file($imagePath) ? getimagesize($imagePath) : false;
 		if ($size === false) {
 			$this->logger->error('Image does not exist.');
 			return false;
@@ -330,7 +330,7 @@ class ImageResizer
 		}
 
 		// Resample the original image into the resized canvas we set up earlier
-		ImageCopyResampled($dst, $src, 0, 0, $offsetX, $offsetY, $tnWidth, $tnHeight, $width, $height);
+		ImageCopyResampled($dst, $src, 0, 0, (int) $offsetX, (int) $offsetY, (int) $tnWidth, (int) $tnHeight, (int) $width, (int) $height);
 
 		if ($doSharpen && $sharpeningIntensity->shouldApply()) {
 			// Sharpen the image based on two things:

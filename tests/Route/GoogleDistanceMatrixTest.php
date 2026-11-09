@@ -4,7 +4,7 @@ namespace Tests\Route;
 
 use GuzzleHttp\Psr7\Response;
 use Osimatic\Route\GoogleDistanceMatrix;
-use Osimatic\Route\GoogleDistanceMatrixParameters;
+use Osimatic\Route\RouteParameters;
 use Osimatic\Route\TransitTravelMode;
 use Osimatic\Route\TravelMode;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -275,7 +275,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->avoidTolls();
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, $params);
@@ -297,7 +297,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->avoidHighways();
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, $params);
@@ -319,7 +319,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->avoidFerries();
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, $params);
@@ -343,7 +343,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->avoidTolls()->avoidHighways()->avoidFerries();
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::DRIVE, $params);
@@ -367,7 +367,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->avoidIndoor();
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::WALK, $params);
@@ -391,7 +391,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setTransitModes([TransitTravelMode::BUS, TransitTravelMode::SUBWAY]);
 
 		$result = $client->getDistanceMatrix(self::ORIGIN_COORDS, self::DESTINATION_COORDS, TravelMode::TRANSIT, $params);
@@ -417,7 +417,7 @@ class GoogleDistanceMatrixTest extends TestCase
 			->willReturn(new Response(200, [], json_encode($responseData)));
 
 		$client = new GoogleDistanceMatrix(self::TEST_API_KEY, httpClient: $httpClient);
-		$params = new GoogleDistanceMatrixParameters();
+		$params = new RouteParameters();
 		$params->setTransitModes([
 			TransitTravelMode::BUS,
 			TransitTravelMode::SUBWAY,
