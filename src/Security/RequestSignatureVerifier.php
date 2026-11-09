@@ -2,6 +2,7 @@
 
 namespace Osimatic\Security;
 
+use Osimatic\Cache\StoreInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -33,6 +34,11 @@ class RequestSignatureVerifier
 	 */
 	public const int DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300; // ±5 minutes
 
+	/**
+	 * Prefix of the keys under which used nonces are recorded in the store.
+	 */
+	public const string NONCE_KEY_PREFIX = 'hmac_nonce:';
+
 	// ========================================
 	// Constructor & Configuration
 	// ========================================
@@ -41,11 +47,13 @@ class RequestSignatureVerifier
 	 * @param string $secret Shared secret known to both the server and the client
 	 * @param int $toleranceSeconds Maximum age of a valid request in seconds (default: 300)
 	 * @param LoggerInterface $logger The PSR-3 logger instance for error and debugging (default: NullLogger)
+	 * @param StoreInterface|null $store Store recording used nonces to reject replayed requests (null: no replay protection)
 	 */
 	public function __construct(
 		private string $secret = '',
 		private int $toleranceSeconds = self::DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
 		private readonly LoggerInterface $logger = new NullLogger(),
+		private readonly ?StoreInterface $store = null,
 	)
 	{}
 
@@ -84,8 +92,8 @@ class RequestSignatureVerifier
 	 *
 	 * Performs three checks in order:
 	 *   1. Timestamp freshness — rejects requests older than the configured tolerance
-	 *   2. Nonce uniqueness — rejects replayed requests
-	 *   3. Signature integrity — rejects tampered payloads
+	 *   2. Signature integrity — rejects tampered payloads (checked before the nonce, so a forged request cannot consume a nonce)
+	 *   3. Nonce uniqueness — rejects replayed requests, when a store is configured
 	 *
 	 * The caller is responsible for providing the exact list of fields to sign,
 	 * sorted alphabetically, matching the signing logic on the client side.
@@ -120,15 +128,7 @@ class RequestSignatureVerifier
 			return false;
 		}
 
-		// 2. Reject replayed requests via nonce deduplication.
-		if (!$this->isNonceUnique($nonce)) {
-			$this->logger->warning('Request signature verification failed: nonce already used.', [
-				'nonce' => $nonce,
-			]);
-			return false;
-		}
-
-		// 3. Rebuild the canonical string and compare signatures.
+		// 2. Rebuild the canonical string and compare signatures.
 		$expected = $this->generateSignature($timestamp, $nonce, $signedFields, $postData);
 
 		if (!hash_equals($expected, $signature)) {
@@ -139,8 +139,13 @@ class RequestSignatureVerifier
 			return false;
 		}
 
-		// Nonce is valid — record it to block future replays.
-		$this->markNonceUsed($nonce);
+		// 3. Reject replayed requests: the nonce is recorded atomically, only once the signature is valid.
+		if (null !== $this->store && !$this->store->addIfAbsent(self::NONCE_KEY_PREFIX . $nonce, $this->toleranceSeconds)) {
+			$this->logger->warning('Request signature verification failed: nonce already used.', [
+				'nonce' => $nonce,
+			]);
+			return false;
+		}
 
 		$this->logger->debug('Request signature verified successfully.', [
 			'nonce' => $nonce,
@@ -210,52 +215,5 @@ class RequestSignatureVerifier
 		}
 
 		return $timestamp . "\n" . $nonce . "\n" . implode('&', $parts);
-	}
-
-	/**
-	 * Checks whether the given nonce has not been used before.
-	 *
-	 * Must be implemented using a store that supports TTL-based expiry to avoid unbounded growth.
-	 *
-	 * Example with Redis (recommended — automatic TTL):
-	 * <code>
-	 *   return $redis->set("hmac_nonce:{$nonce}", 1, 'EX', 300, 'NX') !== false;
-	 * </code>
-	 *
-	 * Example with a database table:
-	 * <code>
-	 *   return DB::table('used_nonces')->where('nonce', $nonce)->doesntExist();
-	 * </code>
-	 *
-	 * @param string $nonce The nonce value from the X-Nonce header
-	 * @return bool True if the nonce has never been seen, false if it was already used
-	 */
-	private function isNonceUnique(string $nonce): bool
-	{
-		// TODO: implement using Redis or a database table
-		return true;
-	}
-
-	/**
-	 * Records a nonce as used to prevent future replay attacks.
-	 *
-	 * The stored entry must expire after the configured tolerance window to avoid unbounded growth.
-	 *
-	 * Example with Redis:
-	 * <code>
-	 *   $redis->set("hmac_nonce:{$nonce}", 1, 'EX', 300);
-	 * </code>
-	 *
-	 * Example with a database table:
-	 * <code>
-	 *   DB::table('used_nonces')->insert(['nonce' => $nonce, 'used_at' => now()]);
-	 * </code>
-	 * Entries older than the tolerance window should be purged via a scheduled job.
-	 *
-	 * @param string $nonce The nonce value to record
-	 */
-	private function markNonceUsed(string $nonce): void
-	{
-		// TODO: implement using Redis or a database table
 	}
 }
