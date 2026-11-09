@@ -3,6 +3,7 @@
 namespace Osimatic\Security;
 
 use Osimatic\Cache\StoreInterface;
+use Osimatic\Network\HTTPHeaders;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -105,15 +106,17 @@ class RequestSignatureVerifier
 	 */
 	public function verify(array $postData, array $headers, array $signedFields): bool
 	{
-		$timestamp = $headers['X-Timestamp'] ?? null;
-		$nonce = $headers['X-Nonce'] ?? null;
-		$signature = $headers['X-Signature'] ?? null;
+		// Les en-têtes HTTP sont insensibles à la casse (Symfony les normalise en minuscules)
+		$headers = HTTPHeaders::normalize($headers);
+		$timestamp = $headers['x-timestamp'] ?? null;
+		$nonce = $headers['x-nonce'] ?? null;
+		$signature = $headers['x-signature'] ?? null;
 
 		if (!$timestamp || !$nonce || !$signature) {
 			$this->logger->warning('Request signature verification failed: missing headers.', [
-				'has_timestamp' => isset($headers['X-Timestamp']),
-				'has_nonce' => isset($headers['X-Nonce']),
-				'has_signature' => isset($headers['X-Signature']),
+				'has_timestamp' => isset($headers['x-timestamp']),
+				'has_nonce' => isset($headers['x-nonce']),
+				'has_signature' => isset($headers['x-signature']),
 			]);
 			return false;
 		}
