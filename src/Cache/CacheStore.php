@@ -30,4 +30,9 @@ final class CacheStore implements StoreInterface
 
 		return $this->pool->save($item);
 	}
+
+	public function has(string $key): bool
+	{
+		return $this->pool->getItem(hash('sha256', $key))->isHit();
+	}
 }

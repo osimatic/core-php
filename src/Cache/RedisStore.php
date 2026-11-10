@@ -19,4 +19,9 @@ final class RedisStore implements StoreInterface
 	{
 		return true === $this->redis->set($this->prefix . $key, 1, ['nx', 'ex' => $ttlSeconds]);
 	}
+
+	public function has(string $key): bool
+	{
+		return $this->redis->exists($this->prefix . $key) > 0;
+	}
 }

@@ -17,4 +17,12 @@ interface StoreInterface
 	 * @return bool true si la clé était absente (elle vient d'être enregistrée), false si elle existait déjà
 	 */
 	public function addIfAbsent(string $key, int $ttlSeconds): bool;
+
+	/**
+	 * Indique si la clé existe, sans l'enregistrer.
+	 *
+	 * @param string $key Clé à rechercher
+	 * @return bool true si la clé existe, false sinon
+	 */
+	public function has(string $key): bool;
 }
