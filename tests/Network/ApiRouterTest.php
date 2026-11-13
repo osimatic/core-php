@@ -33,6 +33,48 @@ class ApiRouterTest extends TestCase
 		self::assertSame(404, $router->dispatch(Request::create('/apiping'))->getStatusCode());
 	}
 
+	public function testRequireTrustedOrigin(): void
+	{
+		$sameOrigin = ['HTTP_ORIGIN' => 'http://localhost'];
+		$otherOrigin = ['HTTP_ORIGIN' => 'https://evil.com'];
+
+		$router = new ApiRouter();
+		$router->add(HTTPMethod::GET, '/items', fn() => new Response('list'));
+		$router->add(HTTPMethod::POST, '/items', fn() => new Response('created', 201));
+
+		// Disabled by default: a cross-origin or origin-less state-changing request is handled
+		self::assertSame(201, $router->dispatch(Request::create('/items', 'POST', [], [], [], $otherOrigin))->getStatusCode());
+		self::assertSame(201, $router->dispatch(Request::create('/items', 'POST'))->getStatusCode());
+
+		// Chaining
+		self::assertSame($router, $router->requireTrustedOrigin());
+
+		// Safe methods are never checked
+		self::assertSame('list', $router->dispatch(Request::create('/items', 'GET', [], [], [], $otherOrigin))->getContent());
+
+		// State-changing request from the application origin is handled
+		self::assertSame(201, $router->dispatch(Request::create('/items', 'POST', [], [], [], $sameOrigin))->getStatusCode());
+
+		// Cross-origin or origin-less state-changing request is refused before reaching the handler
+		$response = $router->dispatch(Request::create('/items', 'POST', [], [], [], $otherOrigin));
+		self::assertSame(403, $response->getStatusCode());
+		self::assertSame(['error' => 'forbidden_origin'], json_decode($response->getContent(), true));
+		self::assertSame(403, $router->dispatch(Request::create('/items', 'POST'))->getStatusCode());
+
+		// A method override cannot bypass the check
+		self::assertSame(403, $router->dispatch(Request::create('/items', 'POST', [], [], [], ['HTTP_X_HTTP_METHOD_OVERRIDE' => 'GET']))->getStatusCode());
+
+		// Unknown path and unregistered method are still answered with 404 and 405
+		self::assertSame(404, $router->dispatch(Request::create('/unknown', 'POST', [], [], [], $otherOrigin))->getStatusCode());
+		self::assertSame(405, $router->dispatch(Request::create('/items', 'DELETE', [], [], [], $otherOrigin))->getStatusCode());
+
+		// Extra origins
+		$router->requireTrustedOrigin(['https://evil.com']);
+		self::assertSame(201, $router->dispatch(Request::create('/items', 'POST', [], [], [], $otherOrigin))->getStatusCode());
+		self::assertSame(201, $router->dispatch(Request::create('/items', 'POST', [], [], [], $sameOrigin))->getStatusCode());
+		self::assertSame(403, $router->dispatch(Request::create('/items', 'POST', [], [], [], ['HTTP_ORIGIN' => 'https://other.com']))->getStatusCode());
+	}
+
 	// ========================================
 	// Route Registration Methods Tests
 	// ========================================
@@ -41,7 +83,7 @@ class ApiRouterTest extends TestCase
 	{
 		$router = new ApiRouter();
 
-		// Chaining, method case-insensitive, slashes normalized
+		// Chaining, path normalized (leading slash optional, trailing slash ignored)
 		self::assertSame($router, $router->add(HTTPMethod::GET, 'items/', fn() => new Response('list')));
 		self::assertSame('list', $router->dispatch(Request::create('/items'))->getContent());
 		self::assertSame('list', $router->dispatch(Request::create('/items/'))->getContent());
