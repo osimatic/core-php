@@ -147,7 +147,7 @@ Always include relevant reference links:
 
 - **Project:** core-php (Osimatic PHP helper library)
 - **Status:** Production code
-- **PHP Version:** 8.0+
+- **PHP Version:** 8.3+
 - **Testing:** PHPUnit
 - **Requirements:** Backward compatibility must be maintained
 
