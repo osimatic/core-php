@@ -8,7 +8,9 @@ use Psr\Log\NullLogger;
 
 /**
  * Passkey credential store backed by a JSON file, through JsonDB.
- * Binary values (credential ID, user ID) are stored base64-encoded and dates in ISO 8601 format. Only public data is stored, but the file should still be kept out of any web-accessible location.
+ * The credential ID is stored as the base64url string sent by the browser, the user ID (arbitrary binary string) is stored base64-encoded, and dates are stored in ISO 8601 format.
+ * A companion lock file (the JSON file name followed by ".lock") is created next to the JSON file to serialize concurrent accesses, and must not be deleted.
+ * Only public data is stored, but the files should still be kept out of any web-accessible location.
  *
  * @link https://www.php.net/manual/en/function.base64-encode.php base64_encode
  */
@@ -101,10 +103,8 @@ class JsonDBPasskeyCredentialStore implements PasskeyCredentialStoreInterface
 	 */
 	public function delete(string $credentialId): bool
 	{
-		$encodedCredentialId = base64_encode($credentialId);
-
-		return $this->updateRecords(static function (array $records) use ($encodedCredentialId): ?array {
-			$remainingRecords = array_values(array_filter($records, static fn(array $record): bool => ($record['credentialId'] ?? null) !== $encodedCredentialId));
+		return $this->updateRecords(static function (array $records) use ($credentialId): ?array {
+			$remainingRecords = array_values(array_filter($records, static fn(array $record): bool => ($record['credentialId'] ?? null) !== $credentialId));
 			// Nothing to delete: no write needed
 			return count($remainingRecords) === count($records) ? null : $remainingRecords;
 		});
@@ -212,7 +212,7 @@ class JsonDBPasskeyCredentialStore implements PasskeyCredentialStoreInterface
 	}
 
 	/**
-	 * Builds a raw record from a credential. Binary values are base64-encoded.
+	 * Builds a raw record from a credential. The credential ID is already base64url and is stored as is, the user ID (arbitrary binary string) is base64-encoded.
 	 *
 	 * @param PasskeyCredential $credential The credential
 	 * @return array The raw record
@@ -220,7 +220,7 @@ class JsonDBPasskeyCredentialStore implements PasskeyCredentialStoreInterface
 	private function createRecordFromCredential(PasskeyCredential $credential): array
 	{
 		return [
-			'credentialId' => base64_encode($credential->getCredentialId()),
+			'credentialId' => $credential->getCredentialId(),
 			'publicKeyPem' => $credential->getPublicKeyPem(),
 			'userId' => base64_encode($credential->getUserId()),
 			'signatureCounter' => $credential->getSignatureCounter(),
@@ -238,16 +238,15 @@ class JsonDBPasskeyCredentialStore implements PasskeyCredentialStoreInterface
 	 */
 	private function createCredentialFromRecord(array $record): ?PasskeyCredential
 	{
-		$credentialId = base64_decode((string)($record['credentialId'] ?? ''), true);
 		$userId = base64_decode((string)($record['userId'] ?? ''), true);
-		if (false === $credentialId || false === $userId) {
-			$this->logger->error('Invalid credential ID or user ID in the passkey credentials file.');
+		if (false === $userId) {
+			$this->logger->error('Invalid user ID in the passkey credentials file.');
 			return null;
 		}
 
 		try {
 			return new PasskeyCredential(
-				$credentialId,
+				(string)($record['credentialId'] ?? ''),
 				(string)($record['publicKeyPem'] ?? ''),
 				$userId,
 				(int)($record['signatureCounter'] ?? 0),

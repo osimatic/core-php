@@ -2,6 +2,8 @@
 
 namespace Osimatic\Security;
 
+use Osimatic\Data\Encoding;
+
 /**
  * Immutable record of a registered passkey (WebAuthn credential), as kept by the server.
  * It only holds public data: the credential ID and the public key. The private key never leaves the authenticator device, so this object is not secret.
@@ -16,7 +18,7 @@ final class PasskeyCredential
 	// Properties
 	// ========================================
 
-	/** Raw credential ID as returned by the authenticator (binary string) */
+	/** Credential ID as a base64url string without padding, which is how the browser sends it (the "id" field of a PublicKeyCredential) */
 	private readonly string $credentialId;
 
 	/** Public key in PEM format, used to verify assertion signatures */
@@ -42,19 +44,24 @@ final class PasskeyCredential
 	// ========================================
 
 	/**
-	 * @param string $credentialId Raw credential ID (binary string), must not be empty
+	 * @param string $credentialId Credential ID as a canonical base64url string without padding (exactly as sent by the browser), must not be empty
 	 * @param string $publicKeyPem Public key in PEM format, must not be empty
 	 * @param string $userId Identifier of the user owning this credential, must not be empty
 	 * @param int $signatureCounter Last signature counter seen for this credential (0 if the authenticator does not implement it)
 	 * @param string $name Label of the passkey (empty if none)
 	 * @param \DateTimeImmutable|null $createdAt Date of registration (default: now)
 	 * @param \DateTimeImmutable|null $lastUsedAt Date of the last successful authentication (default: null, never used)
-	 * @throws \InvalidArgumentException If the credential ID, the public key or the user ID is empty, or if the signature counter is negative
+	 * @throws \InvalidArgumentException If the credential ID is empty or not canonical base64url, if the public key or the user ID is empty, or if the signature counter is negative
 	 */
 	public function __construct(string $credentialId, string $publicKeyPem, string $userId, int $signatureCounter = 0, string $name = '', ?\DateTimeImmutable $createdAt = null, ?\DateTimeImmutable $lastUsedAt = null)
 	{
 		if ('' === $credentialId) {
 			throw new \InvalidArgumentException('The credential ID must not be empty.');
+		}
+		// A single written form per ID (no padding, no "+" or "/", no stray bits) so that IDs can be compared as plain strings
+		$rawCredentialId = Encoding::decodeBase64URL($credentialId, true);
+		if (false === $rawCredentialId || Encoding::encodeBase64URL($rawCredentialId) !== $credentialId) {
+			throw new \InvalidArgumentException('The credential ID must be a canonical base64url string without padding.');
 		}
 		if ('' === $publicKeyPem) {
 			throw new \InvalidArgumentException('The public key must not be empty.');
@@ -80,9 +87,10 @@ final class PasskeyCredential
 	// ========================================
 
 	/**
-	 * Returns the raw credential ID (binary string).
+	 * Returns the credential ID as a base64url string, the same value as the "id" field sent by the browser.
+	 * It can be given as is to PasskeyCredentialStoreInterface::findByCredentialId() and to the credential ID lists of WebAuthnService.
 	 *
-	 * @return string The credential ID
+	 * @return string The credential ID (base64url, without padding)
 	 */
 	public function getCredentialId(): string
 	{

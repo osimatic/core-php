@@ -4,6 +4,7 @@ namespace Osimatic\Security;
 
 use lbuchs\WebAuthn\WebAuthn;
 use lbuchs\WebAuthn\WebAuthnException;
+use Osimatic\Data\Encoding;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -15,7 +16,8 @@ use Psr\Log\NullLogger;
  * 2. the browser asks the authenticator to sign the challenge and sends the result back, which the server verifies against the kept challenge.
  *
  * The challenge is single-use: callers must store it between the two steps and discard it after verification, whatever the outcome.
- * Binary values (challenge, credential IDs) are exchanged with the browser as base64url strings.
+ * Every value coming from or going to the browser (credential IDs, clientDataJSON, attestationObject, authenticatorData, signature) is a base64url string, exactly as the browser JSON carries it: callers never have to encode or decode anything, the conversion to binary is done here, right before calling the library.
+ * The only raw (binary) value is the challenge, which never leaves the server.
  * User verification (PIN or biometrics) is always required.
  *
  * @link https://www.w3.org/TR/webauthn-3/ Web Authentication specification
@@ -62,32 +64,35 @@ class WebAuthnService
 	 * @param string $userId Stable identifier of the user (binary string, 64 bytes max, must not contain personal data)
 	 * @param string $userName Account name of the user, displayed by the authenticator
 	 * @param string $userDisplayName Display name of the user, displayed by the authenticator
-	 * @param string[] $excludeCredentialIds Raw credential IDs (binary strings) already registered, to prevent registering the same authenticator twice
+	 * @param string[] $excludeCredentialIds Base64url credential IDs (see PasskeyCredential::getCredentialId()) already registered, to prevent registering the same authenticator twice
 	 * @return PasskeyCeremonyOptions The options to send to the browser, and the raw challenge to keep until verification
+	 * @throws \InvalidArgumentException If an excluded credential ID is not a valid base64url string
 	 * @link https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create navigator.credentials.create()
 	 */
 	public function createRegistrationOptions(string $userId, string $userName, string $userDisplayName, array $excludeCredentialIds = []): PasskeyCeremonyOptions
 	{
+		$rawExcludeCredentialIds = array_map($this->decodeBase64Url(...), array_values($excludeCredentialIds));
 		$webAuthn = $this->createWebAuthn();
-		$options = $webAuthn->getCreateArgs($userId, $userName, $userDisplayName, self::CEREMONY_TIMEOUT_SECONDS, false, true, null, $excludeCredentialIds);
+		$options = $webAuthn->getCreateArgs($userId, $userName, $userDisplayName, self::CEREMONY_TIMEOUT_SECONDS, false, true, null, $rawExcludeCredentialIds);
 		return new PasskeyCeremonyOptions($options, $webAuthn->getChallenge()->getBinaryString());
 	}
 
 	/**
 	 * Verifies the response of the browser to a registration, and builds the credential to store.
 	 *
-	 * @param string $clientDataJSON Raw clientDataJSON from the browser (binary string)
-	 * @param string $attestationObject Raw attestationObject from the browser (binary string)
+	 * @param string $clientDataJSON Base64url clientDataJSON, as sent by the browser
+	 * @param string $attestationObject Base64url attestationObject, as sent by the browser
 	 * @param string $expectedChallenge The raw challenge returned by createRegistrationOptions()
 	 * @param string $userId Identifier of the user registering the passkey (the one given to createRegistrationOptions())
 	 * @param string $name Label of the passkey, to let the user tell his passkeys apart (empty if none)
-	 * @return PasskeyCredential|null The credential to store if the registration is valid, null otherwise
+	 * @return PasskeyCredential|null The credential to store if the registration is valid, null otherwise (including when a value is not valid base64url)
 	 */
 	public function verifyRegistration(string $clientDataJSON, string $attestationObject, string $expectedChallenge, string $userId, string $name = ''): ?PasskeyCredential
 	{
 		try {
-			$data = $this->createWebAuthn()->processCreate($clientDataJSON, $attestationObject, $expectedChallenge, true);
-			return new PasskeyCredential($data->credentialId, $data->credentialPublicKey, $userId, (int)($data->signatureCounter ?? 0), $name);
+			$data = $this->createWebAuthn()->processCreate($this->decodeBase64Url($clientDataJSON), $this->decodeBase64Url($attestationObject), $expectedChallenge, true);
+			// The library gives the credential ID as binary: it is kept as base64url, the format used by the browser
+			return new PasskeyCredential(Encoding::encodeBase64URL($data->credentialId), $data->credentialPublicKey, $userId, (int)($data->signatureCounter ?? 0), $name);
 		} catch (WebAuthnException|\InvalidArgumentException|\TypeError $e) {
 			// TypeError is caught on purpose: the library does not validate the types of the untrusted data sent by the browser (e.g. a malformed clientDataJSON)
 			$this->logger->warning('Passkey registration rejected: ' . $e->getMessage());
@@ -102,14 +107,16 @@ class WebAuthnService
 	/**
 	 * Generates the options for authenticating with a registered passkey. The "options" part is to be sent to the browser as JSON (it is the argument of navigator.credentials.get()).
 	 *
-	 * @param string[] $credentialIds Raw credential IDs (binary strings) accepted for this authentication
+	 * @param string[] $credentialIds Base64url credential IDs (see PasskeyCredential::getCredentialId()) accepted for this authentication
 	 * @return PasskeyCeremonyOptions The options to send to the browser, and the raw challenge to keep until verification
+	 * @throws \InvalidArgumentException If a credential ID is not a valid base64url string
 	 * @link https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get navigator.credentials.get()
 	 */
 	public function createAuthenticationOptions(array $credentialIds): PasskeyCeremonyOptions
 	{
+		$rawCredentialIds = array_map($this->decodeBase64Url(...), array_values($credentialIds));
 		$webAuthn = $this->createWebAuthn();
-		$options = $webAuthn->getGetArgs($credentialIds, self::CEREMONY_TIMEOUT_SECONDS, true, true, true, true, true, true);
+		$options = $webAuthn->getGetArgs($rawCredentialIds, self::CEREMONY_TIMEOUT_SECONDS, true, true, true, true, true, true);
 		return new PasskeyCeremonyOptions($options, $webAuthn->getChallenge()->getBinaryString());
 	}
 
@@ -117,21 +124,21 @@ class WebAuthnService
 	 * Verifies the response of the browser to an authentication: challenge, origin, signature and signature counter.
 	 *
 	 * @param PasskeyCredential $credential The registered credential matching the credential ID sent by the browser
-	 * @param string $clientDataJSON Raw clientDataJSON from the browser (binary string)
-	 * @param string $authenticatorData Raw authenticatorData from the browser (binary string)
-	 * @param string $signature Raw signature from the browser (binary string)
+	 * @param string $clientDataJSON Base64url clientDataJSON, as sent by the browser
+	 * @param string $authenticatorData Base64url authenticatorData, as sent by the browser
+	 * @param string $signature Base64url signature, as sent by the browser
 	 * @param string $expectedChallenge The raw challenge returned by createAuthenticationOptions()
-	 * @return PasskeyCredential|null The credential with its updated signature counter and last use date (to store again) if the authentication is valid, null otherwise
+	 * @return PasskeyCredential|null The credential with its updated signature counter and last use date (to store again) if the authentication is valid, null otherwise (including when a value is not valid base64url)
 	 */
 	public function verifyAuthentication(PasskeyCredential $credential, string $clientDataJSON, string $authenticatorData, string $signature, string $expectedChallenge): ?PasskeyCredential
 	{
 		try {
 			$webAuthn = $this->createWebAuthn();
-			$webAuthn->processGet($clientDataJSON, $authenticatorData, $signature, $credential->getPublicKeyPem(), $expectedChallenge, $credential->getSignatureCounter(), true);
+			$webAuthn->processGet($this->decodeBase64Url($clientDataJSON), $this->decodeBase64Url($authenticatorData), $this->decodeBase64Url($signature), $credential->getPublicKeyPem(), $expectedChallenge, $credential->getSignatureCounter(), true);
 			return $credential
 				->withSignatureCounter($webAuthn->getSignatureCounter() ?? $credential->getSignatureCounter())
 				->withLastUsedAt(new \DateTimeImmutable());
-		} catch (WebAuthnException|\TypeError $e) {
+		} catch (WebAuthnException|\InvalidArgumentException|\TypeError $e) {
 			$this->logger->warning('Passkey authentication rejected: ' . $e->getMessage());
 			return null;
 		}
@@ -140,6 +147,23 @@ class WebAuthnService
 	// ========================================
 	// Helper Methods
 	// ========================================
+
+	/**
+	 * Decodes a base64url value received from the browser (or from the store) into binary, as expected by the library.
+	 * An empty value is refused, since none of the values handled here can be empty.
+	 *
+	 * @param string $value The base64url string
+	 * @return string The decoded binary string
+	 * @throws \InvalidArgumentException If the value is empty or is not valid base64url
+	 */
+	private function decodeBase64Url(string $value): string
+	{
+		$decoded = Encoding::decodeBase64URL($value, true);
+		if (false === $decoded || '' === $decoded) {
+			throw new \InvalidArgumentException('Invalid base64url value.');
+		}
+		return $decoded;
+	}
 
 	/**
 	 * Creates a fresh lbuchs/webauthn instance.

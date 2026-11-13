@@ -55,7 +55,7 @@ class WebAuthnServiceTest extends TestCase
 
 	public function testCreateRegistrationOptions(): void
 	{
-		$result = $this->service->createRegistrationOptions("\x01\x02user", 'admin', 'Administrator', ["\x09\x08cred"]);
+		$result = $this->service->createRegistrationOptions("\x01\x02user", 'admin', 'Administrator', [self::toBase64Url("\x09\x08cred")]);
 		$options = json_decode(json_encode($result->getOptions()), true);
 
 		// Relying party and user
@@ -73,6 +73,16 @@ class WebAuthnServiceTest extends TestCase
 		// User verification is required, already registered credentials are excluded
 		self::assertSame('required', $options['publicKey']['authenticatorSelection']['userVerification']);
 		self::assertSame(self::toBase64Url("\x09\x08cred"), $options['publicKey']['excludeCredentials'][0]['id']);
+
+		// An excluded credential ID that is not valid base64url (standard Base64 characters, garbage, empty) is refused
+		foreach (['AQL/', '!!!', ''] as $invalidCredentialId) {
+			try {
+				$this->service->createRegistrationOptions('user', 'admin', 'Administrator', [$invalidCredentialId]);
+				self::fail('Expected exception for the excluded credential ID "' . $invalidCredentialId . '"');
+			} catch (\InvalidArgumentException) {
+				self::assertTrue(true);
+			}
+		}
 	}
 
 	public function testVerifyRegistration(): void
@@ -80,17 +90,20 @@ class WebAuthnServiceTest extends TestCase
 		$challenge = $this->service->createRegistrationOptions('user', 'admin', 'Administrator')->getChallenge();
 
 		// Invalid data is rejected and logged, never throws
-		$this->logger->expects(self::once())->method('warning');
-		self::assertNull($this->service->verifyRegistration('not json', 'not cbor', $challenge, 'user'));
+		$this->logger->expects(self::exactly(2))->method('warning');
+		self::assertNull($this->service->verifyRegistration(self::toBase64Url('not json'), self::toBase64Url('not cbor'), $challenge, 'user'));
 
-		// Valid registration (WebAuthn library mocked): the credential is bound to the user and carries the name
+		// Values that are not valid base64url are rejected and logged as well
+		self::assertNull($this->service->verifyRegistration('not base64url!', self::toBase64Url('not cbor'), $challenge, 'user'));
+
+		// Valid registration (WebAuthn library mocked): the browser values are decoded before reaching the library, and the credential ID given back as binary is kept as base64url
 		$data = (object)['credentialId' => "\x01cred", 'credentialPublicKey' => 'PEM', 'signatureCounter' => 4];
 		$webAuthn = $this->createMock(WebAuthn::class);
 		$webAuthn->expects(self::once())->method('processCreate')->with('client', 'attestation', 'challenge', true)->willReturn($data);
-		$service = new WebAuthnService('Test Site', 'example.com', $this->logger, fn() => $webAuthn);
-		$credential = $service->verifyRegistration('client', 'attestation', 'challenge', 'user-1', 'My phone');
+		$service = new WebAuthnService('Test Site', 'example.com', $this->createStub(LoggerInterface::class), fn() => $webAuthn);
+		$credential = $service->verifyRegistration(self::toBase64Url('client'), self::toBase64Url('attestation'), 'challenge', 'user-1', 'My phone');
 		self::assertNotNull($credential);
-		self::assertSame("\x01cred", $credential->getCredentialId());
+		self::assertSame(self::toBase64Url("\x01cred"), $credential->getCredentialId());
 		self::assertSame('PEM', $credential->getPublicKeyPem());
 		self::assertSame('user-1', $credential->getUserId());
 		self::assertSame(4, $credential->getSignatureCounter());
@@ -100,7 +113,7 @@ class WebAuthnServiceTest extends TestCase
 		$webAuthn = $this->createMock(WebAuthn::class);
 		$webAuthn->method('processCreate')->willReturn($data);
 		$service = new WebAuthnService('Test Site', 'example.com', $this->createStub(LoggerInterface::class), fn() => $webAuthn);
-		self::assertNull($service->verifyRegistration('client', 'attestation', 'challenge', ''));
+		self::assertNull($service->verifyRegistration(self::toBase64Url('client'), self::toBase64Url('attestation'), 'challenge', ''));
 	}
 
 	// ========================================
@@ -109,7 +122,7 @@ class WebAuthnServiceTest extends TestCase
 
 	public function testCreateAuthenticationOptions(): void
 	{
-		$result = $this->service->createAuthenticationOptions(["\x01\x02cred", 'other']);
+		$result = $this->service->createAuthenticationOptions([self::toBase64Url("\x01\x02cred"), self::toBase64Url('other')]);
 		$options = json_decode(json_encode($result->getOptions()), true);
 
 		// Relying party and allowed credentials
@@ -123,24 +136,37 @@ class WebAuthnServiceTest extends TestCase
 
 		// User verification is required
 		self::assertSame('required', $options['publicKey']['userVerification']);
+
+		// A credential ID that is not valid base64url (standard Base64 characters, garbage, empty) is refused
+		foreach (['AQL/', '!!!', ''] as $invalidCredentialId) {
+			try {
+				$this->service->createAuthenticationOptions([$invalidCredentialId]);
+				self::fail('Expected exception for the credential ID "' . $invalidCredentialId . '"');
+			} catch (\InvalidArgumentException) {
+				self::assertTrue(true);
+			}
+		}
 	}
 
 	public function testVerifyAuthentication(): void
 	{
-		$credential = new PasskeyCredential('cred', 'not a pem key', 'user', 1, 'Laptop');
-		$challenge = $this->service->createAuthenticationOptions(['cred'])->getChallenge();
+		$credential = new PasskeyCredential(self::toBase64Url('cred'), 'not a pem key', 'user', 1, 'Laptop');
+		$challenge = $this->service->createAuthenticationOptions([$credential->getCredentialId()])->getChallenge();
 
 		// Invalid data is rejected and logged, never throws
-		$this->logger->expects(self::once())->method('warning');
-		self::assertNull($this->service->verifyAuthentication($credential, 'not json', 'authenticator data', 'signature', $challenge));
+		$this->logger->expects(self::exactly(2))->method('warning');
+		self::assertNull($this->service->verifyAuthentication($credential, self::toBase64Url('not json'), self::toBase64Url('authenticator data'), self::toBase64Url('signature'), $challenge));
 
-		// Valid authentication (WebAuthn library mocked): counter and last use date are updated, the rest is kept
+		// Values that are not valid base64url are rejected and logged as well
+		self::assertNull($this->service->verifyAuthentication($credential, 'not base64url!', self::toBase64Url('authenticator data'), self::toBase64Url('signature'), $challenge));
+
+		// Valid authentication (WebAuthn library mocked): the browser values are decoded before reaching the library, counter and last use date are updated, the rest is kept
 		$webAuthn = $this->createMock(WebAuthn::class);
 		$webAuthn->expects(self::once())->method('processGet')->with('client', 'auth data', 'sig', 'not a pem key', 'challenge', 1, true)->willReturn(true);
 		$webAuthn->method('getSignatureCounter')->willReturn(8);
 		$service = new WebAuthnService('Test Site', 'example.com', $this->createStub(LoggerInterface::class), fn() => $webAuthn);
 		$before = new \DateTimeImmutable();
-		$updated = $service->verifyAuthentication($credential, 'client', 'auth data', 'sig', 'challenge');
+		$updated = $service->verifyAuthentication($credential, self::toBase64Url('client'), self::toBase64Url('auth data'), self::toBase64Url('sig'), 'challenge');
 		self::assertNotNull($updated);
 		self::assertSame(8, $updated->getSignatureCounter());
 		self::assertGreaterThanOrEqual($before, $updated->getLastUsedAt());
@@ -152,12 +178,12 @@ class WebAuthnServiceTest extends TestCase
 		$webAuthn->method('processGet')->willReturn(true);
 		$webAuthn->method('getSignatureCounter')->willReturn(null);
 		$service = new WebAuthnService('Test Site', 'example.com', $this->createStub(LoggerInterface::class), fn() => $webAuthn);
-		self::assertSame(1, $service->verifyAuthentication($credential, 'client', 'auth data', 'sig', 'challenge')?->getSignatureCounter());
+		self::assertSame(1, $service->verifyAuthentication($credential, self::toBase64Url('client'), self::toBase64Url('auth data'), self::toBase64Url('sig'), 'challenge')?->getSignatureCounter());
 
 		// Rejected by the library (e.g. signature counter going backwards)
 		$webAuthn = $this->createMock(WebAuthn::class);
 		$webAuthn->method('processGet')->willThrowException(new WebAuthnException('invalid signature'));
 		$service = new WebAuthnService('Test Site', 'example.com', $this->createStub(LoggerInterface::class), fn() => $webAuthn);
-		self::assertNull($service->verifyAuthentication($credential, 'client', 'auth data', 'sig', 'challenge'));
+		self::assertNull($service->verifyAuthentication($credential, self::toBase64Url('client'), self::toBase64Url('auth data'), self::toBase64Url('sig'), 'challenge'));
 	}
 }

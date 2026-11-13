@@ -25,9 +25,9 @@ interface PasskeyCredentialStoreInterface
 	public function findByUserId(string $userId): array;
 
 	/**
-	 * Finds a registered credential by its raw credential ID.
+	 * Finds a registered credential by its credential ID.
 	 *
-	 * @param string $credentialId Raw credential ID (binary string)
+	 * @param string $credentialId Base64url credential ID, as sent by the browser
 	 * @return PasskeyCredential|null The credential if found, null otherwise
 	 */
 	public function findByCredentialId(string $credentialId): ?PasskeyCredential;
@@ -43,7 +43,7 @@ interface PasskeyCredentialStoreInterface
 	/**
 	 * Deletes a credential, e.g. when a user revokes a lost authenticator.
 	 *
-	 * @param string $credentialId Raw credential ID (binary string)
+	 * @param string $credentialId Base64url credential ID, as sent by the browser
 	 * @return bool True if the credential has been deleted, false if it does not exist or could not be deleted
 	 */
 	public function delete(string $credentialId): bool;

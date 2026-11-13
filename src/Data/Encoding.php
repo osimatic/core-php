@@ -29,7 +29,8 @@ class Encoding
 	/**
 	 * Decodes data from Base64URL.
 	 * If the strict parameter is set to true, the function will return false
-	 * if the input contains a character from outside the Base64 alphabet. Otherwise,
+	 * if the input contains a character from outside the Base64URL alphabet (letters, digits, "-" and "_", with optional trailing "=" padding),
+	 * including the "+" and "/" characters of standard Base64. Otherwise,
 	 * invalid characters will be silently discarded.
 	 * @param string $data The Base64URL-encoded string to decode
 	 * @param bool $strict Whether to reject invalid characters instead of discarding them
@@ -37,6 +38,11 @@ class Encoding
 	 */
 	public static function decodeBase64URL(string $data, bool $strict = false): string|false
 	{
+		// "+" and "/" are valid in standard Base64 but not in Base64URL, and would pass the conversion below unnoticed
+		if ($strict && 1 !== preg_match('/^[A-Za-z0-9_-]*={0,2}$/D', $data)) {
+			return false;
+		}
+
 		// Convert Base64URL to Base64 by replacing "-" with "+" and "_" with "/"
 		$b64 = strtr($data, '-_', '+/');
 
