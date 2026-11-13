@@ -31,6 +31,9 @@ final class LoginSession
 	/** Session key holding the time of the login */
 	private const string KEY_AUTHENTICATED_AT = 'authenticated_at';
 
+	/** Session key holding the logged-in user */
+	private const string KEY_USER = 'user';
+
 	/** Session key holding the challenge of the ceremony in progress */
 	private const string KEY_CHALLENGE = 'passkey_challenge';
 
@@ -135,12 +138,27 @@ final class LoginSession
 	}
 
 	/**
-	 * Marks the session as logged in. The session ID is renewed to prevent session fixation.
+	 * Marks the session as logged in for the given user. The session ID is renewed to prevent session fixation.
+	 *
+	 * @param string $email E-mail address of the user, used as login
+	 * @param string $firstName First name of the user, for display
+	 * @param string $lastName Last name of the user, for display
 	 */
-	public function login(): void
+	public function login(string $email, string $firstName = '', string $lastName = ''): void
 	{
 		session_regenerate_id(true);
 		$_SESSION[self::KEY_AUTHENTICATED_AT] = time();
+		$_SESSION[self::KEY_USER] = ['email' => $email, 'firstName' => $firstName, 'lastName' => $lastName];
+	}
+
+	/**
+	 * Returns the logged-in user, or null if nobody is logged in.
+	 *
+	 * @return array{email: string, firstName: string, lastName: string}|null The user given to login(), or null
+	 */
+	public function getUser(): ?array
+	{
+		return $this->isAuthenticated() ? ($_SESSION[self::KEY_USER] ?? null) : null;
 	}
 
 	/**
