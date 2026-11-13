@@ -3,6 +3,7 @@
 namespace Tests\Network;
 
 use Osimatic\Network\ApiRouter;
+use Osimatic\Network\HTTPMethod;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,13 +19,13 @@ class ApiRouterTest extends TestCase
 	{
 		// Without base path, routes are matched on the full path
 		$router = new ApiRouter();
-		$router->add('GET', '/ping', fn() => new Response('pong'));
+		$router->add(HTTPMethod::GET, '/ping', fn() => new Response('pong'));
 		self::assertSame('pong', $router->dispatch(Request::create('/ping'))->getContent());
 		self::assertSame(404, $router->dispatch(Request::create('/api/ping'))->getStatusCode());
 
 		// With base path, it is removed before matching
 		$router = new ApiRouter('/api');
-		$router->add('GET', '/ping', fn() => new Response('pong'));
+		$router->add(HTTPMethod::GET, '/ping', fn() => new Response('pong'));
 		self::assertSame('pong', $router->dispatch(Request::create('/api/ping'))->getContent());
 		self::assertSame(404, $router->dispatch(Request::create('/ping'))->getStatusCode());
 
@@ -41,17 +42,17 @@ class ApiRouterTest extends TestCase
 		$router = new ApiRouter();
 
 		// Chaining, method case-insensitive, slashes normalized
-		self::assertSame($router, $router->add('get', 'items/', fn() => new Response('list')));
+		self::assertSame($router, $router->add(HTTPMethod::GET, 'items/', fn() => new Response('list')));
 		self::assertSame('list', $router->dispatch(Request::create('/items'))->getContent());
 		self::assertSame('list', $router->dispatch(Request::create('/items/'))->getContent());
 
 		// Same path, different methods
-		$router->add('POST', '/items', fn() => new Response('created', 201));
+		$router->add(HTTPMethod::POST, '/items', fn() => new Response('created', 201));
 		self::assertSame('created', $router->dispatch(Request::create('/items', 'POST'))->getContent());
 		self::assertSame('list', $router->dispatch(Request::create('/items'))->getContent());
 
 		// Registering the same method and path again replaces the handler
-		$router->add('GET', '/items', fn() => new Response('replaced'));
+		$router->add(HTTPMethod::GET, '/items', fn() => new Response('replaced'));
 		self::assertSame('replaced', $router->dispatch(Request::create('/items'))->getContent());
 	}
 
@@ -62,8 +63,8 @@ class ApiRouterTest extends TestCase
 	public function testDispatch(): void
 	{
 		$router = new ApiRouter('/api');
-		$router->add('GET', '/session', fn(Request $request) => new JsonResponse(['path' => $request->getPathInfo()]));
-		$router->add('POST', '/session', fn() => new Response('', 204));
+		$router->add(HTTPMethod::GET, '/session', fn(Request $request) => new JsonResponse(['path' => $request->getPathInfo()]));
+		$router->add(HTTPMethod::POST, '/session', fn() => new Response('', 204));
 
 		// Matching route: the handler receives the request
 		$response = $router->dispatch(Request::create('/api/session'));

@@ -38,14 +38,14 @@ class ApiRouter
 	/**
 	 * Registers a handler for an HTTP method and a path. Registering the same method and path again replaces the previous handler.
 	 *
-	 * @param string $method HTTP method (case-insensitive)
+	 * @param HTTPMethod $method HTTP method of the route
 	 * @param string $path Path relative to the base path (e.g. "/auth/logout")
 	 * @param callable $handler Callable receiving the Request and returning a Response
 	 * @return self Returns this instance for method chaining
 	 */
-	public function add(string $method, string $path, callable $handler): self
+	public function add(HTTPMethod $method, string $path, callable $handler): self
 	{
-		$this->routes[self::normalizePath($path)][strtoupper($method)] = $handler;
+		$this->routes[self::normalizePath($path)][$method->value] = $handler;
 		return $this;
 	}
 
@@ -67,7 +67,7 @@ class ApiRouter
 		}
 
 		$handlers = $this->routes[$path];
-		$handler = $handlers[$request->getMethod()] ?? null;
+		$handler = $handlers[strtoupper($request->getMethod())] ?? null;
 		if (null === $handler) {
 			return new JsonResponse(['error' => 'method_not_allowed'], Response::HTTP_METHOD_NOT_ALLOWED, ['Allow' => implode(', ', array_keys($handlers))]);
 		}
