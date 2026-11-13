@@ -53,6 +53,18 @@ final class PDFGeneratorTest extends TestCase
 	{
 		$filePath = $this->tempDir.'/invoice.pdf';
 
+		// dompdf/dompdf is an optional package: without it, an explicit error is raised and no file is created, and the rendering cannot be tested
+		if (!class_exists(\Dompdf\Dompdf::class)) {
+			try {
+				(new PDFGenerator())->generateFile($filePath, '<html><body><h1>Test invoice</h1></body></html>');
+				$this->fail('Expected exception when dompdf/dompdf is not installed');
+			} catch (\RuntimeException $e) {
+				$this->assertStringContainsString('dompdf/dompdf', $e->getMessage());
+			}
+			$this->assertFileDoesNotExist($filePath);
+			$this->markTestSkipped('dompdf/dompdf is not installed: PDF rendering is not tested.');
+		}
+
 		// Simple body, no header/footer
 		$generator = new PDFGenerator();
 		$this->assertTrue($generator->generateFile($filePath, '<html><body><h1>Test invoice</h1></body></html>'));

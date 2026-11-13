@@ -8,6 +8,7 @@ use Psr\Log\NullLogger;
 /**
  * Utility class for generating PDF files from HTML content.
  * Uses Dompdf to convert HTML to PDF with support for headers, footers, and custom options.
+ * Dompdf is an optional dependency (it is only suggested in composer.json, being heavy): projects generating PDFs must require it themselves with "composer require dompdf/dompdf".
  * For PDF validation, see PDF. For PDF conversion, see PDFConverter. For PDF merging, see PDFMerger.
  */
 class PDFGenerator
@@ -43,10 +44,16 @@ class PDFGenerator
 	 * @param string|null $footerHtml Optional HTML content for the PDF footer, repeated on every page
 	 * @param array $options Dompdf options (see \Dompdf\Options), plus the legacy 'orientation' key ('portrait'|'landscape')
 	 * @return bool True if the PDF was successfully generated, false on error
+	 * @throws \RuntimeException If the optional dompdf/dompdf package is not installed
 	 * @link https://github.com/dompdf/dompdf/wiki/Usage Dompdf usage documentation
 	 */
 	public function generateFile(string $filePath, string $bodyHtml, ?string $headerHtml=null, ?string $footerHtml=null, array $options=[]): bool
 	{
+		// A missing package is an installation problem, not a generation failure: it is reported loudly instead of being hidden behind a "false" return value
+		if (!class_exists(\Dompdf\Dompdf::class)) {
+			throw new \RuntimeException('PDF generation requires the dompdf/dompdf package, which is not installed. Install it with "composer require dompdf/dompdf".');
+		}
+
 		$filePath = \Osimatic\FileSystem\FileSystem::formatPath($filePath);
 		\Osimatic\FileSystem\FileSystem::initializeFile($filePath);
 

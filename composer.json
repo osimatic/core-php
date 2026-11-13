@@ -40,10 +40,12 @@
 		"commerceguys/addressing": "^2",
 		"matomo/device-detector": "^6.5",
 		"async-aws/s3": "^3.4",
-		"dompdf/dompdf": "^3.1",
 		"horstoeko/invoicesuite": "^0.0",
 		"atgp/factur-x": "^3.5",
 		"lbuchs/webauthn": "^2"
+	},
+	"suggest": {
+		"dompdf/dompdf": "^3.1 — required by Osimatic\\Text\\PDFGenerator to render HTML to PDF (and by the default PDF generation of Osimatic\\Invoice\\ChorusProClient)"
 	},
 	"config": {
 		"allow-plugins": {

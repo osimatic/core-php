@@ -69,10 +69,15 @@ final class FacturXGeneratorTest extends TestCase
 
 	/**
 	 * Creates a minimal valid PDF file for testing, using the real Dompdf-based PDFGenerator (a hand-written PDF fixture is too easy to get subtly wrong, e.g. an incorrect xref table, which FPDI then rejects).
+	 * The calling test is skipped when the optional dompdf/dompdf package is not installed.
 	 * @return string Path to the temporary PDF file
 	 */
 	private function createMinimalPdfFile(): string
 	{
+		if (!class_exists(\Dompdf\Dompdf::class)) {
+			$this->markTestSkipped('dompdf/dompdf is not installed: a source PDF cannot be generated.');
+		}
+
 		$path = $this->tempDir.'/source.pdf';
 
 		(new PDFGenerator())->generateFile($path, '<html><body><h1>Test invoice</h1></body></html>');
