@@ -71,6 +71,18 @@ final class StrTest extends TestCase
 		$result = Str::sanitizeInput('test — example – case');
 		$this->assertSame('test - example - case', $result);
 
+		// Emojis removed by removeEmoji()
+		$result = Str::sanitizeInput('Super 👍🏽 !');
+		$this->assertSame('Super  !', $result);
+
+		// Composed emoji (ZWJ sequence) removed entirely
+		$result = Str::sanitizeInput('Famille 👨‍👩‍👧 ok');
+		$this->assertSame('Famille  ok', $result);
+
+		// Flag emoji (regional indicators) removed
+		$result = Str::sanitizeInput('France 🇫🇷');
+		$this->assertSame('France ', $result);
+
 		// Empty string
 		$result = Str::sanitizeInput('');
 		$this->assertSame('', $result);

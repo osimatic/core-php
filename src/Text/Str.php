@@ -64,23 +64,29 @@ class Str
 	 * Sanitizes a string by cleaning problematic Unicode characters and normalizing diacritical marks.
 	 * Processing steps:
 	 * 1. Replaces problematic typographic characters (curly quotes, dashes, special spaces) with ASCII equivalents via replaceAnnoyingChar()
-	 * 2. Normalizes to Unicode NFC (composed) form, composing combining characters with their base characters
-	 * 3. Removes any remaining combining diacritical marks that don't compose
+	 * 2. Removes all emoji characters via removeEmoji()
+	 * 3. Normalizes to Unicode NFC (composed) form, composing combining characters with their base characters
+	 * 4. Removes any remaining combining diacritical marks that don't compose
 	 * Requires the intl PHP extension for proper Unicode normalization.
-	 * Without intl, only the combining marks removal is performed after replaceAnnoyingChar().
+	 * Without intl, only the combining marks removal is performed after replaceAnnoyingChar() and removeEmoji().
 	 * Example: '"café"' (with curly quotes) becomes '"café"' (with straight quotes)
 	 * Example: "e\u{0301}" (e + combining acute) becomes "é" (precomposed)
+	 * Example: 'Super 👍🏽' becomes 'Super ' (emojis removed)
 	 * @param string $input The string to sanitize
-	 * @return string The sanitized string with problematic characters replaced and combining marks removed
+	 * @return string The sanitized string with problematic characters replaced, emojis and combining marks removed
 	 * @link https://www.php.net/manual/en/class.normalizer.php Normalizer class
 	 * @link https://unicode.org/reports/tr15/ Unicode Normalization Forms
+	 * @link https://unicode.org/reports/tr51/ Unicode Emoji specification
 	 */
 	public static function sanitizeInput(string $input): string
 	{
 		// 1. Nettoyage des caractères typographiques problématiques
 		$input = self::replaceAnnoyingChar($input);
 
-		// 2. Normalisation des caractères de combinaison
+		// 2. Suppression des emojis
+		$input = self::removeEmoji($input);
+
+		// 3. Normalisation des caractères de combinaison
 		if (extension_loaded('intl') && class_exists('Normalizer')) {
 			$normalized = \Normalizer::normalize($input, \Normalizer::FORM_C);
 		} else {
@@ -736,6 +742,12 @@ class Str
 
 		// Remove regional indicator symbols (flag emojis: 🇫🇷, 🇺🇸, etc.)
 		$str = preg_replace('/[\x{1F1E0}-\x{1F1FF}]/u', '', $str);
+
+		// Remove skin tone modifiers (e.g., 🏽 U+1F3FD), which are not Extended_Pictographic
+		$str = preg_replace('/\p{Emoji_Modifier}/u', '', $str);
+
+		// Remove combining enclosing keycap (U+20E3, used in keycap sequences like 1️⃣)
+		$str = preg_replace('/\x{20E3}/u', '', $str);
 
 		return $str;
 	}
