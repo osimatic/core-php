@@ -128,6 +128,41 @@ final class NumberTest extends TestCase
 		$this->assertEquals(0, Number::parseInt(null));
 	}
 
+	public function testParseMinorUnits(): void
+	{
+		// Comma and dot separators, default 2 decimals
+		$this->assertSame(5000, Number::parseMinorUnits('50,00'));
+		$this->assertSame(5000, Number::parseMinorUnits('50.00'));
+		$this->assertSame(5050, Number::parseMinorUnits('50.5'));
+		$this->assertSame(5050, Number::parseMinorUnits('50,5'));
+		$this->assertSame(5000, Number::parseMinorUnits('50'));
+		$this->assertSame(1, Number::parseMinorUnits('0,01'));
+		$this->assertSame(0, Number::parseMinorUnits('0'));
+		$this->assertSame(750, Number::parseMinorUnits('007,50'));
+		$this->assertSame(99999999, Number::parseMinorUnits('999999,99'));
+
+		// Surrounding spaces are ignored
+		$this->assertSame(5000, Number::parseMinorUnits(' 50,00 '));
+
+		// Invalid: negative, exponent, thousands separator, too many decimals, letters, empty
+		$this->assertNull(Number::parseMinorUnits('-5'));
+		$this->assertNull(Number::parseMinorUnits('1e3'));
+		$this->assertNull(Number::parseMinorUnits('1 000'));
+		$this->assertNull(Number::parseMinorUnits('1,234'));
+		$this->assertNull(Number::parseMinorUnits('abc'));
+		$this->assertNull(Number::parseMinorUnits(''));
+		$this->assertNull(Number::parseMinorUnits('50,'));
+		$this->assertNull(Number::parseMinorUnits(',50'));
+
+		// Overflow beyond 18 digits
+		$this->assertNull(Number::parseMinorUnits('9999999999999999999'));
+
+		// Custom number of decimals
+		$this->assertSame(1234, Number::parseMinorUnits('1,234', 3));
+		$this->assertSame(120, Number::parseMinorUnits('12', 1));
+		$this->assertNull(Number::parseMinorUnits('12', 0));
+	}
+
 	public function testFloatToString(): void
 	{
 		$this->assertEquals('3.14', Number::floatToString(3.14));

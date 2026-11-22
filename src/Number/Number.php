@@ -124,6 +124,25 @@ class Number
 	}
 
 	/**
+	 * Parses a non-negative decimal string (dot or comma separator) into an integer number of minor units, without any float conversion
+	 * @param string $str the decimal string to parse, e.g. "50,00", "50.5" or "50"
+	 * @param int $decimals the number of decimal digits of the minor unit (default: 2, e.g. cents)
+	 * @return int|null the amount in minor units, or null if the string is not a valid non-negative decimal
+	 */
+	public static function parseMinorUnits(string $str, int $decimals=2): ?int
+	{
+		if ($decimals < 1 || !preg_match('/^(\d+)(?:[.,](\d{1,'.$decimals.'}))?$/', trim($str), $matches)) {
+			return null;
+		}
+
+		$digits = ltrim($matches[1].str_pad($matches[2] ?? '', $decimals, '0'), '0') ?: '0';
+		if (strlen($digits) > 18) {
+			return null;
+		}
+		return (int) $digits;
+	}
+
+	/**
 	 * Converts a float to a string representation with at least one decimal place
 	 * @param float|null $str the float value to convert
 	 * @return string the string representation of the float
