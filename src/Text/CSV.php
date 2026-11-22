@@ -175,6 +175,18 @@ class CSV
 	}
 
 	/**
+	 * Neutralizes a text value that a spreadsheet application would interpret as a formula, by prefixing it with an apostrophe.
+	 * Values starting with "=", "+", "-", "@", a tab or a carriage return are escaped to prevent CSV formula injection.
+	 * @param string $value The text value to write in a cell
+	 * @return string The value, safe to write as text in a cell
+	 * @link https://owasp.org/www-community/attacks/CSV_Injection
+	 */
+	public static function neutralizeFormula(string $value): string
+	{
+		return preg_match('/^[=+\-@\t\r]/', $value) ? "'".$value : $value;
+	}
+
+	/**
 	 * Forces a value to be treated as a string in Excel by adding ="value" format.
 	 * Useful for preventing Excel from auto-converting values (like leading zeros).
 	 * @param string|int|float|null $value The value to format
