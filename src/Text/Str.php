@@ -184,6 +184,29 @@ class Str
 		return strcasecmp($val1, $val2); // Comparison, case-insensitive
 	}
 
+	/**
+	 * Normalizes a string for comparison: lowercase, without accents, spaces or punctuation (including dashes and apostrophes).
+	 * Strings that only differ by case, accents, spaces or punctuation give the same result (e.g., "Sample text !" and "sampletext" both become "sampletext").
+	 * @param string $str The string to normalize
+	 * @return string The normalized string
+	 * @link https://www.php.net/manual/en/regexp.reference.unicode.php
+	 */
+	public static function normalizeForComparison(string $str): string
+	{
+		return preg_replace('/[\s\p{P}]+/u', '', self::removeAccents(mb_strtolower($str))) ?? '';
+	}
+
+	/**
+	 * Alias of normalizeForComparison(), for a shorter call when comparing values.
+	 * @param string $str The string to normalize
+	 * @return string The normalized string
+	 * @see normalizeForComparison()
+	 */
+	public static function toComparableString(string $str): string
+	{
+		return self::normalizeForComparison($str);
+	}
+
 	// ========== String Truncation ==========
 
 	/**
@@ -1247,6 +1270,17 @@ class Str
 		$str = preg_replace(['/[^a-zA-Z0-9 \'-]/', '/[ -\']+/', '/^-|-$/'], ['', '-', ''], $str);
 		$str = preg_replace('/-inc$/i', '', $str);
 		return mb_strtolower($str);
+	}
+
+	/**
+	 * Alias of toURLFriendly(), for a consistent naming with normalizeForComparison().
+	 * @param string $str The string to convert
+	 * @return string The URL-friendly string
+	 * @see toURLFriendly()
+	 */
+	public static function normalizeForUrl(string $str): string
+	{
+		return self::toURLFriendly($str);
 	}
 
 	/**

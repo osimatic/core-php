@@ -131,6 +131,22 @@ final class StrTest extends TestCase
 		$this->assertSame(0, Str::compare('Test', 'test', caseSensitive: false));
 	}
 
+	public function testNormalizeForComparison(): void
+	{
+		$this->assertSame('sampletext', Str::normalizeForComparison('Sample text'));
+		$this->assertSame('sampletext', Str::normalizeForComparison('  SAMPLE  Text !'));
+		$this->assertSame('sampletext', Str::normalizeForComparison('Sample-text'));
+		$this->assertSame('cafedexemple', Str::normalizeForComparison('Café d’exemple'));
+		$this->assertSame('sampleinc', Str::normalizeForComparison('Sample inc.'));
+		$this->assertSame('', Str::normalizeForComparison(' .,! '));
+	}
+
+	public function testToComparableString(): void
+	{
+		$this->assertSame('sampletext', Str::toComparableString('Sample Text'));
+		$this->assertSame(Str::normalizeForComparison('Été 2026'), Str::toComparableString('Été 2026'));
+	}
+
 	/* ===================== truncateTextAtEnd() ===================== */
 
 	public function testTruncateTextAtEnd(): void
@@ -605,6 +621,12 @@ final class StrTest extends TestCase
 		$this->assertSame('hello-world', Str::toURLFriendly('Hello World'));
 		$this->assertSame('cafe-paris', Str::toURLFriendly('Café Paris'));
 		$this->assertSame('test-123', Str::toURLFriendly('Test 123'));
+	}
+
+	public function testNormalizeForUrl(): void
+	{
+		$this->assertSame(Str::toURLFriendly('Hello World'), Str::normalizeForUrl('Hello World'));
+		$this->assertSame('cafe-paris', Str::normalizeForUrl('Café Paris'));
 	}
 
 	/* ===================== mb_ucfirst() ===================== */
